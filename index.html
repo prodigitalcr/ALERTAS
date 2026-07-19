@@ -1,791 +1,406 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alerta Escolar - Sistema de Emergencia</title>
-    <!-- Firebase SDK (versión compat para navegador simple) -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: white; overflow: hidden; }
-
-        #mode-selector { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10000; transition: opacity 0.5s; }
-        #mode-selector h1 { font-size: 3rem; margin-bottom: 10px; text-shadow: 0 0 20px rgba(229, 57, 53, 0.5); }
-        #mode-selector .subtitle { font-size: 1.2rem; color: #aaa; margin-bottom: 50px; }
-        .mode-buttons { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; }
-        .mode-btn { padding: 40px 60px; font-size: 1.5rem; border: none; border-radius: 20px; cursor: pointer; transition: all 0.3s; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; }
-        .mode-btn.director { background: linear-gradient(135deg, #e53935, #c62828); color: white; box-shadow: 0 10px 40px rgba(229, 57, 53, 0.4); }
-        .mode-btn.director:hover { transform: translateY(-5px); box-shadow: 0 15px 50px rgba(229, 57, 53, 0.6); }
-        .mode-btn.pantalla { background: linear-gradient(135deg, #1565c0, #0d47a1); color: white; box-shadow: 0 10px 40px rgba(21, 101, 192, 0.4); }
-        .mode-btn.pantalla:hover { transform: translateY(-5px); box-shadow: 0 15px 50px rgba(21, 101, 192, 0.6); }
-        .mode-btn.offline { background: linear-gradient(135deg, #f57c00, #e65100); color: white; box-shadow: 0 10px 40px rgba(245, 124, 0, 0.4); }
-        .mode-btn.offline:hover { transform: translateY(-5px); box-shadow: 0 15px 50px rgba(245, 124, 0, 0.6); }
-
-        #director-panel { display: none; width: 100vw; height: 100vh; background: #0d1117; flex-direction: column; }
-        .director-header { background: #161b22; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #30363d; }
-        .director-header h2 { color: #e53935; font-size: 1.5rem; display: flex; align-items: center; gap: 10px; }
-        .status-indicator { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
-        .status-dot { width: 12px; height: 12px; border-radius: 50%; animation: pulse 2s infinite; }
-        .status-dot.online { background: #00e676; box-shadow: 0 0 10px #00e676; }
-        .status-dot.offline { background: #ff5252; box-shadow: 0 0 10px #ff5252; }
-        .status-dot.connecting { background: #ffd740; box-shadow: 0 0 10px #ffd740; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .director-main { display: flex; flex: 1; overflow: hidden; }
-
-        .alerts-panel { width: 350px; background: #161b22; padding: 20px; display: flex; flex-direction: column; gap: 15px; border-right: 2px solid #30363d; overflow-y: auto; }
-        .alert-btn { padding: 25px; border: none; border-radius: 15px; font-size: 1.3rem; font-weight: bold; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px; position: relative; overflow: hidden; }
-        .alert-btn::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); transition: left 0.5s; }
-        .alert-btn:hover::before { left: 100%; }
-        .alert-btn:active { transform: scale(0.98); }
-        .alert-roja { background: linear-gradient(135deg, #b71c1c, #d32f2f); color: white; box-shadow: 0 5px 20px rgba(183, 28, 28, 0.4); }
-        .alert-naranja { background: linear-gradient(135deg, #e65100, #f57c00); color: white; box-shadow: 0 5px 20px rgba(230, 81, 0, 0.4); }
-        .alert-amarilla { background: linear-gradient(135deg, #f9a825, #ffee58); color: #333; box-shadow: 0 5px 20px rgba(249, 168, 37, 0.4); }
-        .alert-verde { background: linear-gradient(135deg, #2e7d32, #66bb6a); color: white; box-shadow: 0 5px 20px rgba(46, 125, 50, 0.4); }
-        .alert-azul { background: linear-gradient(135deg, #1565c0, #42a5f5); color: white; box-shadow: 0 5px 20px rgba(21, 101, 192, 0.4); }
-        .alert-btn.active { box-shadow: 0 0 30px currentColor; animation: emergency-pulse 1s infinite; }
-        @keyframes emergency-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
-
-        .video-panel { flex: 1; display: flex; flex-direction: column; padding: 20px; gap: 20px; }
-        .video-preview-container { flex: 1; background: #000; border-radius: 15px; overflow: hidden; position: relative; border: 3px solid #30363d; }
-        #localVideo { width: 100%; height: 100%; object-fit: cover; }
-        .video-overlay { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 10px; font-size: 0.9rem; }
-        .video-controls { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; }
-        .control-btn { padding: 15px 30px; border: none; border-radius: 10px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 10px; }
-        .control-btn.iniciar { background: #00e676; color: #000; }
-        .control-btn.detener { background: #ff5252; color: white; }
-        .control-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .screens-panel { width: 300px; background: #161b22; padding: 20px; border-left: 2px solid #30363d; display: flex; flex-direction: column; }
-        .screens-panel h3 { margin-bottom: 15px; color: #58a6ff; font-size: 1.1rem; }
-        .screens-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
-        .screen-item { aspect-ratio: 1; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: bold; transition: all 0.3s; cursor: pointer; }
-        .screen-item.connected { background: #238636; color: white; }
-        .screen-item.disconnected { background: #30363d; color: #8b949e; }
-        .screen-item.receiving { background: #1f6feb; animation: screen-blink 1s infinite; }
-        @keyframes screen-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-        .stats-box { background: #0d1117; padding: 15px; border-radius: 10px; margin-top: auto; }
-        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; }
-
-        #screen-panel { display: none; width: 100vw; height: 100vh; background: #000; position: relative; }
-        #remoteVideo { width: 100%; height: 100%; object-fit: cover; }
-        .screen-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
-        .screen-overlay.active { display: block; }
-        .emergency-banner { position: absolute; top: 0; left: 0; width: 100%; padding: 30px; text-align: center; font-size: 3rem; font-weight: bold; text-transform: uppercase; animation: banner-slide 0.5s ease-out; z-index: 100; }
-        @keyframes banner-slide { from { transform: translateY(-100%); } to { transform: translateY(0); } }
-        .emergency-roja { background: #d32f2f; color: white; box-shadow: 0 0 50px rgba(211, 47, 47, 0.8); }
-        .emergency-naranja { background: #f57c00; color: white; box-shadow: 0 0 50px rgba(245, 124, 0, 0.8); }
-        .emergency-amarilla { background: #ffee58; color: #333; box-shadow: 0 0 50px rgba(255, 238, 88, 0.8); }
-        .emergency-verde { background: #66bb6a; color: white; box-shadow: 0 0 50px rgba(102, 187, 106, 0.8); }
-        .emergency-azul { background: #42a5f5; color: white; box-shadow: 0 0 50px rgba(66, 165, 245, 0.8); }
-        .emergency-instructions { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); padding: 30px 50px; border-radius: 20px; font-size: 1.5rem; text-align: center; max-width: 80%; border: 3px solid currentColor; }
-        .connection-status { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 10px; font-size: 0.9rem; display: flex; align-items: center; gap: 10px; z-index: 101; }
-        .screen-id { position: absolute; bottom: 20px; right: 20px; background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 10px; font-size: 0.8rem; z-index: 101; }
-
-        .fallback-message { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; background: #1a1a2e; text-align: center; padding: 50px; }
-        .fallback-message.active { display: flex; }
-        .fallback-icon { font-size: 8rem; margin-bottom: 30px; }
-        .fallback-text { font-size: 2rem; margin-bottom: 20px; }
-        .fallback-subtext { font-size: 1.2rem; color: #aaa; }
-
-        #offline-config { display: none; width: 100vw; height: 100vh; background: #0d1117; flex-direction: column; padding: 40px; overflow-y: auto; }
-        .offline-header { text-align: center; margin-bottom: 40px; }
-        .offline-header h2 { color: #f57c00; font-size: 2rem; }
-        .offline-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; max-width: 1200px; margin: 0 auto; width: 100%; }
-        .offline-card { background: #161b22; padding: 30px; border-radius: 15px; border: 2px solid #30363d; }
-        .offline-card h3 { color: #58a6ff; margin-bottom: 15px; }
-        .offline-card p { color: #8b949e; line-height: 1.6; margin-bottom: 15px; }
-        .offline-card code { background: #0d1117; padding: 15px; border-radius: 8px; display: block; font-family: 'Courier New', monospace; color: #7ee787; font-size: 0.85rem; overflow-x: auto; }
-
-        @media (max-width: 1200px) { .alerts-panel { width: 280px; } .screens-panel { width: 250px; } }
-        @media (max-width: 768px) { .director-main { flex-direction: column; } .alerts-panel, .screens-panel { width: 100%; max-height: 300px; } .mode-btn { padding: 30px 40px; font-size: 1.2rem; } }
-
-        .loading-spinner { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 60px; height: 60px; border: 4px solid #30363d; border-top-color: #e53935; border-radius: 50%; animation: spin 1s linear infinite; z-index: 99999; display: none; }
-        @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
-
-        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 99999; display: flex; flex-direction: column; gap: 10px; }
-        .toast { background: #161b22; border-left: 4px solid; padding: 15px 25px; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); animation: toast-in 0.3s ease-out; max-width: 350px; }
-        @keyframes toast-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        .toast.success { border-left-color: #00e676; }
-        .toast.error { border-left-color: #ff5252; }
-        .toast.warning { border-left-color: #ffd740; }
-        .toast.info { border-left-color: #42a5f5; }
-
-        .fullscreen-btn { position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.7); border: none; color: white; padding: 10px 20px; border-radius: 10px; cursor: pointer; z-index: 101; font-size: 0.9rem; }
-        .network-indicator { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.7); padding: 8px 15px; border-radius: 8px; font-size: 0.8rem; z-index: 101; display: flex; align-items: center; gap: 8px; }
-
-        .firebase-config { background: #0d1117; padding: 20px; border-radius: 10px; margin: 20px 0; border: 2px solid #e53935; }
-        .firebase-config h4 { color: #e53935; margin-bottom: 10px; }
-        .firebase-config code { background: #161b22; padding: 10px; border-radius: 5px; display: block; font-family: monospace; color: #7ee787; font-size: 0.85rem; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alerta Escolar - Sistema de Emergencia</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#1a1a2e;color:white;overflow:hidden}
+#mode-selector{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10000}
+#mode-selector h1{font-size:3rem;margin-bottom:10px;text-shadow:0 0 20px rgba(229,57,53,0.5)}
+#mode-selector .subtitle{font-size:1.2rem;color:#aaa;margin-bottom:50px}
+.mode-buttons{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+.mode-btn{padding:40px 60px;font-size:1.5rem;border:none;border-radius:20px;cursor:pointer;transition:all 0.3s;font-weight:bold;text-transform:uppercase;letter-spacing:2px}
+.mode-btn.director{background:linear-gradient(135deg,#e53935,#c62828);color:white;box-shadow:0 10px 40px rgba(229,57,53,0.4)}
+.mode-btn.director:hover{transform:translateY(-5px);box-shadow:0 15px 50px rgba(229,57,53,0.6)}
+.mode-btn.pantalla{background:linear-gradient(135deg,#1565c0,#0d47a1);color:white;box-shadow:0 10px 40px rgba(21,101,192,0.4)}
+.mode-btn.pantalla:hover{transform:translateY(-5px);box-shadow:0 15px 50px rgba(21,101,192,0.6)}
+.mode-btn.offline{background:linear-gradient(135deg,#f57c00,#e65100);color:white;box-shadow:0 10px 40px rgba(245,124,0,0.4)}
+.mode-btn.offline:hover{transform:translateY(-5px);box-shadow:0 15px 50px rgba(245,124,0,0.6)}
+#director-panel{display:none;width:100vw;height:100vh;background:#0d1117;flex-direction:column}
+.director-header{background:#161b22;padding:15px 30px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #30363d}
+.director-header h2{color:#e53935;font-size:1.5rem;display:flex;align-items:center;gap:10px}
+.status-indicator{display:flex;align-items:center;gap:10px;font-size:0.9rem}
+.status-dot{width:12px;height:12px;border-radius:50%;animation:pulse 2s infinite}
+.status-dot.online{background:#00e676;box-shadow:0 0 10px #00e676}
+.status-dot.offline{background:#ff5252;box-shadow:0 0 10px #ff5252}
+.status-dot.connecting{background:#ffd740;box-shadow:0 0 10px #ffd740}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.director-main{display:flex;flex:1;overflow:hidden}
+.alerts-panel{width:350px;background:#161b22;padding:20px;display:flex;flex-direction:column;gap:15px;border-right:2px solid #30363d;overflow-y:auto}
+.alert-btn{padding:25px;border:none;border-radius:15px;font-size:1.3rem;font-weight:bold;cursor:pointer;transition:all 0.2s;text-transform:uppercase;letter-spacing:1px;position:relative;overflow:hidden}
+.alert-btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);transition:left 0.5s}
+.alert-btn:hover::before{left:100%}
+.alert-btn:active{transform:scale(0.98)}
+.alert-roja{background:linear-gradient(135deg,#b71c1c,#d32f2f);color:white;box-shadow:0 5px 20px rgba(183,28,28,0.4)}
+.alert-naranja{background:linear-gradient(135deg,#e65100,#f57c00);color:white;box-shadow:0 5px 20px rgba(230,81,0,0.4)}
+.alert-amarilla{background:linear-gradient(135deg,#f9a825,#ffee58);color:#333;box-shadow:0 5px 20px rgba(249,168,37,0.4)}
+.alert-verde{background:linear-gradient(135deg,#2e7d32,#66bb6a);color:white;box-shadow:0 5px 20px rgba(46,125,50,0.4)}
+.alert-azul{background:linear-gradient(135deg,#1565c0,#42a5f5);color:white;box-shadow:0 5px 20px rgba(21,101,192,0.4)}
+.alert-btn.active{box-shadow:0 0 30px currentColor;animation:emergency-pulse 1s infinite}
+@keyframes emergency-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
+.video-panel{flex:1;display:flex;flex-direction:column;padding:20px;gap:20px}
+.video-preview-container{flex:1;background:#000;border-radius:15px;overflow:hidden;position:relative;border:3px solid #30363d}
+#localVideo{width:100%;height:100%;object-fit:cover}
+.video-overlay{position:absolute;top:20px;left:20px;background:rgba(0,0,0,0.7);padding:10px 20px;border-radius:10px;font-size:0.9rem}
+.video-controls{display:flex;gap:15px;justify-content:center;flex-wrap:wrap}
+.control-btn{padding:15px 30px;border:none;border-radius:10px;font-size:1rem;font-weight:bold;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:10px}
+.control-btn.iniciar{background:#00e676;color:#000}
+.control-btn.detener{background:#ff5252;color:white}
+.control-btn:disabled{opacity:0.5;cursor:not-allowed}
+.screens-panel{width:300px;background:#161b22;padding:20px;border-left:2px solid #30363d;display:flex;flex-direction:column}
+.screens-panel h3{margin-bottom:15px;color:#58a6ff;font-size:1.1rem}
+.screens-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px}
+.screen-item{aspect-ratio:1;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:bold;transition:all 0.3s;cursor:pointer}
+.screen-item.connected{background:#238636;color:white}
+.screen-item.disconnected{background:#30363d;color:#8b949e}
+.screen-item.receiving{background:#1f6feb;animation:screen-blink 1s infinite}
+@keyframes screen-blink{0%,100%{opacity:1}50%{opacity:0.6}}
+.stats-box{background:#0d1117;padding:15px;border-radius:10px;margin-top:auto}
+.stat-row{display:flex;justify-content:space-between;margin-bottom:8px;font-size:0.9rem}
+#screen-panel{display:none;width:100vw;height:100vh;background:#000;position:relative}
+#remoteVideo{width:100%;height:100%;object-fit:cover}
+.screen-overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none}
+.screen-overlay.active{display:block}
+.emergency-banner{position:absolute;top:0;left:0;width:100%;padding:30px;text-align:center;font-size:3rem;font-weight:bold;text-transform:uppercase;animation:banner-slide 0.5s ease-out;z-index:100}
+@keyframes banner-slide{from{transform:translateY(-100%)}to{transform:translateY(0)}}
+.emergency-roja{background:#d32f2f;color:white;box-shadow:0 0 50px rgba(211,47,47,0.8)}
+.emergency-naranja{background:#f57c00;color:white;box-shadow:0 0 50px rgba(245,124,0,0.8)}
+.emergency-amarilla{background:#ffee58;color:#333;box-shadow:0 0 50px rgba(255,238,88,0.8)}
+.emergency-verde{background:#66bb6a;color:white;box-shadow:0 0 50px rgba(102,187,106,0.8)}
+.emergency-azul{background:#42a5f5;color:white;box-shadow:0 0 50px rgba(66,165,245,0.8)}
+.emergency-instructions{position:absolute;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);padding:30px 50px;border-radius:20px;font-size:1.5rem;text-align:center;max-width:80%;border:3px solid currentColor}
+.connection-status{position:absolute;top:20px;right:20px;background:rgba(0,0,0,0.7);padding:10px 20px;border-radius:10px;font-size:0.9rem;display:flex;align-items:center;gap:10px;z-index:101}
+.screen-id{position:absolute;bottom:20px;right:20px;background:rgba(0,0,0,0.7);padding:10px 20px;border-radius:10px;font-size:0.8rem;z-index:101}
+.fallback-message{position:absolute;top:0;left:0;width:100%;height:100%;display:none;flex-direction:column;justify-content:center;align-items:center;background:#1a1a2e;text-align:center;padding:50px}
+.fallback-message.active{display:flex}
+.fallback-icon{font-size:8rem;margin-bottom:30px}
+.fallback-text{font-size:2rem;margin-bottom:20px}
+.fallback-subtext{font-size:1.2rem;color:#aaa}
+#offline-config{display:none;width:100vw;height:100vh;background:#0d1117;flex-direction:column;padding:40px;overflow-y:auto}
+.offline-header{text-align:center;margin-bottom:40px}
+.offline-header h2{color:#f57c00;font-size:2rem}
+.offline-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:30px;max-width:1200px;margin:0 auto;width:100%}
+.offline-card{background:#161b22;padding:30px;border-radius:15px;border:2px solid #30363d}
+.offline-card h3{color:#58a6ff;margin-bottom:15px}
+.offline-card p{color:#8b949e;line-height:1.6;margin-bottom:15px}
+.offline-card code{background:#0d1117;padding:15px;border-radius:8px;display:block;font-family:'Courier New',monospace;color:#7ee787;font-size:0.85rem;overflow-x:auto}
+@media(max-width:1200px){.alerts-panel{width:280px}.screens-panel{width:250px}}
+@media(max-width:768px){.director-main{flex-direction:column}.alerts-panel,.screens-panel{width:100%;max-height:300px}.mode-btn{padding:30px 40px;font-size:1.2rem}}
+.loading-spinner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:60px;height:60px;border:4px solid #30363d;border-top-color:#e53935;border-radius:50%;animation:spin 1s linear infinite;z-index:99999;display:none}
+@keyframes spin{to{transform:translate(-50%,-50%) rotate(360deg)}}
+.toast-container{position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:10px}
+.toast{background:#161b22;border-left:4px solid;padding:15px 25px;border-radius:10px;box-shadow:0 5px 20px rgba(0,0,0,0.5);animation:toast-in 0.3s ease-out;max-width:350px}
+@keyframes toast-in{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.toast.success{border-left-color:#00e676}
+.toast.error{border-left-color:#ff5252}
+.toast.warning{border-left-color:#ffd740}
+.toast.info{border-left-color:#42a5f5}
+.fullscreen-btn{position:absolute;bottom:20px;left:20px;background:rgba(0,0,0,0.7);border:none;color:white;padding:10px 20px;border-radius:10px;cursor:pointer;z-index:101;font-size:0.9rem}
+.network-indicator{position:absolute;top:20px;left:20px;background:rgba(0,0,0,0.7);padding:8px 15px;border-radius:8px;font-size:0.8rem;z-index:101;display:flex;align-items:center;gap:8px}
+.debug-panel{position:fixed;bottom:10px;right:10px;background:rgba(0,0,0,0.9);padding:10px;border-radius:8px;font-size:11px;font-family:monospace;color:#7ee787;max-width:300px;z-index:1000;max-height:150px;overflow-y:auto}
+.debug-panel.hidden{display:none}
+</style>
 <base target="_blank">
 </head>
 <body>
-    <div class="loading-spinner" id="loadingSpinner"></div>
-    <div class="toast-container" id="toastContainer"></div>
+<div class="loading-spinner" id="loadingSpinner"></div>
+<div class="toast-container" id="toastContainer"></div>
+<div class="debug-panel hidden" id="debugPanel"></div>
 
-    <div id="mode-selector">
-        <h1>🚨 ALERTA ESCOLAR</h1>
-        <p class="subtitle">Sistema de Comunicación de Emergencia en Tiempo Real</p>
-        <div class="mode-buttons">
-            <button class="mode-btn director" onclick="selectMode('director')">👩‍💼<br>Directora</button>
-            <button class="mode-btn pantalla" onclick="selectMode('pantalla')">📺<br>Pantalla</button>
-            <button class="mode-btn offline" onclick="selectMode('offline')">📡<br>Config. Offline</button>
-        </div>
-        <p style="margin-top: 40px; color: #666; font-size: 0.9rem;">Funciona con o sin Internet • Latencia mínima • 60 pantallas simultáneas</p>
-    </div>
+<div id="mode-selector">
+<h1>ALERTA ESCOLAR</h1>
+<p class="subtitle">Sistema de Comunicacion de Emergencia en Tiempo Real</p>
+<div class="mode-buttons">
+<button class="mode-btn director" onclick="selectMode('director')">Directora</button>
+<button class="mode-btn pantalla" onclick="selectMode('pantalla')">Pantalla</button>
+<button class="mode-btn offline" onclick="selectMode('offline')">Config. Offline</button>
+</div>
+<p style="margin-top:40px;color:#666;font-size:0.9rem">Funciona con o sin Internet - Latencia minima - 60 pantallas simultaneas</p>
+</div>
 
-    <div id="director-panel">
-        <div class="director-header">
-            <h2>🚨 PANEL DE CONTROL - DIRECTORA</h2>
-            <div class="status-indicator">
-                <span>Estado:</span>
-                <div class="status-dot connecting" id="directorStatusDot"></div>
-                <span id="directorStatusText">Conectando...</span>
-                <span id="connectedScreens">| Pantallas: 0/60</span>
-            </div>
-        </div>
-        <div class="director-main">
-            <div class="alerts-panel">
-                <h3 style="color: #e53935; margin-bottom: 10px; text-align: center;">🚨 ALERTAS</h3>
-                <button class="alert-btn alert-roja" id="btnRoja" onclick="sendAlert('roja', 'AMENAZA INMEDIATA - Lockdown total. Cierren puertas, apaguen luces, silencio absoluto. No abran por ningún motivo.')">🔴 ALERTA ROJA<br><small style="font-size: 0.8rem; opacity: 0.9;">Tiroteo / Intruso</small></button>
-                <button class="alert-btn alert-naranja" id="btnNaranja" onclick="sendAlert('naranja', 'TERREMOTO - Agáchense, cúbranse y agárrense. Aléjense de ventanas. Esperen instrucciones.')">🟠 ALERTA NARANJA<br><small style="font-size: 0.8rem; opacity: 0.9;">Terremoto / Sismo</small></button>
-                <button class="alert-btn alert-amarilla" id="btnAmarilla" onclick="sendAlert('amarilla', 'EVACUACIÓN - Diríjanse a la salida más cercana en orden. No corran. Dejen sus pertenencias.')">🟡 ALERTA AMARILLA<br><small style="font-size: 0.8rem; opacity: 0.9;">Inundación / Evacuación</small></button>
-                <button class="alert-btn alert-azul" id="btnAzul" onclick="sendAlert('azul', 'SHELTER IN PLACE - Manténganse en sus aulas. Cierren puertas. Esperen más información.')">🔵 ALERTA AZUL<br><small style="font-size: 0.8rem; opacity: 0.9;">Shelter in Place</small></button>
-                <button class="alert-btn alert-verde" id="btnVerde" onclick="sendAlert('verde', 'TODO DESPEJADO - La situación está bajo control. Reanuden actividades normales.')">🟢 TODO DESPEJADO<br><small style="font-size: 0.8rem; opacity: 0.9;">Fin de emergencia</small></button>
-                <div style="margin-top: auto; padding: 15px; background: #0d1117; border-radius: 10px; font-size: 0.85rem; color: #8b949e;">
-                    <strong style="color: #fff;">💡 Instrucciones:</strong><br>1. Haga clic en una alerta para enviarla<br>2. Use "Iniciar Transmisión" para video<br>3. El audio se transmite automáticamente
-                </div>
-            </div>
-            <div class="video-panel">
-                <div class="video-preview-container">
-                    <video id="localVideo" autoplay muted playsinline></video>
-                    <div class="video-overlay"><span id="videoStatus">📹 Cámara lista</span></div>
-                </div>
-                <div class="video-controls">
-                    <button class="control-btn iniciar" id="btnStartStream" onclick="startBroadcast()">▶️ INICIAR TRANSMISIÓN</button>
-                    <button class="control-btn detener" id="btnStopStream" onclick="stopBroadcast()" disabled>⏹️ DETENER TRANSMISIÓN</button>
-                    <button class="control-btn" style="background: #30363d; color: white;" onclick="toggleAudio()" id="btnMute">🎤 Audio: ON</button>
-                    <button class="control-btn" style="background: #30363d; color: white;" onclick="switchCamera()">🔄 Cambiar Cámara</button>
-                </div>
-            </div>
-            <div class="screens-panel">
-                <h3>📺 Pantallas Conectadas</h3>
-                <div class="screens-grid" id="screensGrid"></div>
-                <div class="stats-box">
-                    <div class="stat-row"><span>Conectadas:</span><span id="statConnected" style="color: #00e676;">0</span></div>
-                    <div class="stat-row"><span>Recibiendo video:</span><span id="statReceiving" style="color: #58a6ff;">0</span></div>
-                    <div class="stat-row"><span>Desconectadas:</span><span id="statDisconnected" style="color: #ff5252;">60</span></div>
-                    <div class="stat-row"><span>Latencia promedio:</span><span id="statLatency" style="color: #ffd740;">-- ms</span></div>
-                    <div class="stat-row"><span>Modo red:</span><span id="statMode" style="color: #ff9800;">Detectando...</span></div>
-                </div>
-                <button class="control-btn" style="background: #b71c1c; color: white; margin-top: 15px; width: 100%;" onclick="location.reload()">🔄 Cambiar Modo</button>
-            </div>
-        </div>
-    </div>
+<div id="director-panel">
+<div class="director-header">
+<h2>PANEL DE CONTROL - DIRECTORA</h2>
+<div class="status-indicator">
+<span>Estado:</span>
+<div class="status-dot connecting" id="directorStatusDot"></div>
+<span id="directorStatusText">Conectando...</span>
+<span id="connectedScreens">| Pantallas: 0/60</span>
+</div>
+</div>
+<div class="director-main">
+<div class="alerts-panel">
+<h3 style="color:#e53935;margin-bottom:10px;text-align:center">ALERTAS</h3>
+<button class="alert-btn alert-roja" id="btnRoja" onclick="sendAlert('roja','AMENAZA INMEDIATA - Lockdown total. Cierren puertas, apaguen luces, silencio absoluto. No abran por ningun motivo.')">ALERTA ROJA<br><small style="font-size:0.8rem;opacity:0.9">Tiroteo / Intruso</small></button>
+<button class="alert-btn alert-naranja" id="btnNaranja" onclick="sendAlert('naranja','TERREMOTO - Agachense, cubranse y agarrense. Alejense de ventanas. Esperen instrucciones.')">ALERTA NARANJA<br><small style="font-size:0.8rem;opacity:0.9">Terremoto / Sismo</small></button>
+<button class="alert-btn alert-amarilla" id="btnAmarilla" onclick="sendAlert('amarilla','EVACUACION - Dirijanse a la salida mas cercana en orden. No corran. Dejen sus pertenencias.')">ALERTA AMARILLA<br><small style="font-size:0.8rem;opacity:0.9">Inundacion / Evacuacion</small></button>
+<button class="alert-btn alert-azul" id="btnAzul" onclick="sendAlert('azul','SHELTER IN PLACE - Mantenganse en sus aulas. Cierren puertas. Esperen mas informacion.')">ALERTA AZUL<br><small style="font-size:0.8rem;opacity:0.9">Shelter in Place</small></button>
+<button class="alert-btn alert-verde" id="btnVerde" onclick="sendAlert('verde','TODO DESPEJADO - La situacion esta bajo control. Reanuden actividades normales.')">TODO DESPEJADO<br><small style="font-size:0.8rem;opacity:0.9">Fin de emergencia</small></button>
+<div style="margin-top:auto;padding:15px;background:#0d1117;border-radius:10px;font-size:0.85rem;color:#8b949e">
+<strong style="color:#fff">Instrucciones:</strong><br>1. Haga clic en una alerta para enviarla<br>2. Use "Iniciar Transmision" para video<br>3. El audio se transmite automaticamente
+</div>
+</div>
+<div class="video-panel">
+<div class="video-preview-container">
+<video id="localVideo" autoplay muted playsinline></video>
+<div class="video-overlay"><span id="videoStatus">Camara lista</span></div>
+</div>
+<div class="video-controls">
+<button class="control-btn iniciar" id="btnStartStream" onclick="startBroadcast()">INICIAR TRANSMISION</button>
+<button class="control-btn detener" id="btnStopStream" onclick="stopBroadcast()" disabled>DETENER TRANSMISION</button>
+<button class="control-btn" style="background:#30363d;color:white" onclick="toggleAudio()" id="btnMute">Audio: ON</button>
+<button class="control-btn" style="background:#30363d;color:white" onclick="switchCamera()">Cambiar Camara</button>
+<button class="control-btn" style="background:#424242;color:white" onclick="toggleDebug()">Debug</button>
+</div>
+</div>
+<div class="screens-panel">
+<h3>Pantallas Conectadas</h3>
+<div class="screens-grid" id="screensGrid"></div>
+<div class="stats-box">
+<div class="stat-row"><span>Conectadas:</span><span id="statConnected" style="color:#00e676">0</span></div>
+<div class="stat-row"><span>Recibiendo video:</span><span id="statReceiving" style="color:#58a6ff">0</span></div>
+<div class="stat-row"><span>Desconectadas:</span><span id="statDisconnected" style="color:#ff5252">60</span></div>
+<div class="stat-row"><span>Latencia promedio:</span><span id="statLatency" style="color:#ffd740">-- ms</span></div>
+<div class="stat-row"><span>Modo red:</span><span id="statMode" style="color:#ff9800">Detectando...</span></div>
+</div>
+<button class="control-btn" style="background:#b71c1c;color:white;margin-top:15px;width:100%" onclick="location.reload()">Cambiar Modo</button>
+</div>
+</div>
+</div>
 
-    <div id="screen-panel">
-        <video id="remoteVideo" autoplay playsinline></video>
-        <div class="screen-overlay" id="emergencyOverlay">
-            <div class="emergency-banner" id="emergencyBanner">ALERTA</div>
-            <div class="emergency-instructions" id="emergencyInstructions">Esperando instrucciones...</div>
-        </div>
-        <div class="fallback-message" id="fallbackMessage">
-            <div class="fallback-icon" id="fallbackIcon">📡</div>
-            <div class="fallback-text" id="fallbackText">Conectando al sistema...</div>
-            <div class="fallback-subtext" id="fallbackSubtext">Esperando señal de la directora</div>
-        </div>
-        <div class="connection-status">
-            <div class="status-dot connecting" id="screenStatusDot"></div>
-            <span id="screenStatusText">Conectando...</span>
-        </div>
-        <div class="network-indicator" id="networkIndicator">
-            <span id="networkIcon">🌐</span>
-            <span id="networkText">Internet</span>
-        </div>
-        <div class="screen-id" id="screenId">Pantalla: <span id="screenIdValue">--</span></div>
-        <button class="fullscreen-btn" onclick="toggleFullscreen()">⛶ Pantalla Completa</button>
-    </div>
+<div id="screen-panel">
+<video id="remoteVideo" autoplay playsinline></video>
+<div class="screen-overlay" id="emergencyOverlay">
+<div class="emergency-banner" id="emergencyBanner">ALERTA</div>
+<div class="emergency-instructions" id="emergencyInstructions">Esperando instrucciones...</div>
+</div>
+<div class="fallback-message" id="fallbackMessage">
+<div class="fallback-icon" id="fallbackIcon">--</div>
+<div class="fallback-text" id="fallbackText">Conectando al sistema...</div>
+<div class="fallback-subtext" id="fallbackSubtext">Esperando senal de la directora</div>
+</div>
+<div class="connection-status">
+<div class="status-dot connecting" id="screenStatusDot"></div>
+<span id="screenStatusText">Conectando...</span>
+</div>
+<div class="network-indicator" id="networkIndicator">
+<span id="networkIcon">--</span>
+<span id="networkText">Internet</span>
+</div>
+<div class="screen-id" id="screenId">Pantalla: <span id="screenIdValue">--</span></div>
+<button class="fullscreen-btn" onclick="toggleFullscreen()">Pantalla Completa</button>
+</div>
 
-    <div id="offline-config">
-        <div class="offline-header">
-            <h2>📡 Configuración para Modo Sin Internet</h2>
-            <p style="color: #8b949e; margin-top: 10px;">Configure la red local para emergencias cuando no haya Internet</p>
-        </div>
-        <div class="offline-grid">
-            <div class="offline-card">
-                <h3>1. Router Local (Sin Internet)</h3>
-                <p>Configure un router WiFi local. Las pantallas y la laptop de la directora deben conectarse a esta red.</p>
-                <code>SSID: ESCUELA-EMERGENCIA<br>Password: AlertaSegura2024<br>IP Router: 192.168.1.1</code>
-            </div>
-            <div class="offline-card">
-                <h3>2. Laptop de la Directora</h3>
-                <p>La laptop debe tener la IP estática para ser el servidor de señalización:</p>
-                <code>IP: 192.168.1.100<br>Máscara: 255.255.255.0<br>Gateway: 192.168.1.1</code>
-            </div>
-            <div class="offline-card">
-                <h3>3. IP de las Pantallas</h3>
-                <p>Las pantallas obtendrán IP automáticamente (DHCP) o use estáticas:</p>
-                <code>Rango: 192.168.1.101 - 192.168.1.160<br>Máscara: 255.255.255.0<br>DNS: 192.168.1.1</code>
-            </div>
-            <div class="offline-card">
-                <h3>4. Iniciar en Modo Offline</h3>
-                <p>En la laptop de la directora, abra el navegador y seleccione "Directora". En las pantallas, seleccione "Pantalla".</p>
-                <code>URL Director: file:///ruta/al/archivo.html<br>O abra el archivo directamente<br>El sistema detectará la red local automáticamente</code>
-            </div>
-            <div class="offline-card">
-                <h3>5. Prueba de Conectividad</h3>
-                <p>Verifique que todas las pantallas pueden "ver" a la directora:</p>
-                <code>1. Conecte todas las pantallas al WiFi<br>2. En la directora, verifique "Pantallas: 60/60"<br>3. Si no aparecen, refresque la página<br>4. El sistema usa WebRTC para conexión directa</code>
-            </div>
-            <div class="offline-card">
-                <h3>6. Fallback Automático</h3>
-                <p>Si todo falla, las pantallas muestran mensajes pre-cargados:</p>
-                <code>Mensajes almacenados localmente:<br>- ALERTA ROJA: Lockdown<br>- ALERTA NARANJA: Terremoto<br>- ALERTA AMARILLA: Evacuación<br>- TODO DESPEJADO: Fin de emergencia</code>
-            </div>
-        </div>
-        <div style="text-align: center; margin-top: 40px;">
-            <button class="mode-btn" style="background: #238636; color: white;" onclick="location.reload()">⬅️ Volver al Inicio</button>
-        </div>
-    </div>
+<div id="offline-config">
+<div class="offline-header">
+<h2>Configuracion para Modo Sin Internet</h2>
+<p style="color:#8b949e;margin-top:10px">Configure la red local para emergencias cuando no haya Internet</p>
+</div>
+<div class="offline-grid">
+<div class="offline-card">
+<h3>1. Router Local (Sin Internet)</h3>
+<p>Configure un router WiFi local. Las pantallas y la laptop de la directora deben conectarse a esta red.</p>
+<code>SSID: ESCUELA-EMERGENCIA<br>Password: AlertaSegura2024<br>IP Router: 192.168.1.1</code>
+</div>
+<div class="offline-card">
+<h3>2. Laptop de la Directora</h3>
+<p>La laptop debe tener la IP estatica para ser el servidor de senalizacion:</p>
+<code>IP: 192.168.1.100<br>Mascara: 255.255.255.0<br>Gateway: 192.168.1.1</code>
+</div>
+<div class="offline-card">
+<h3>3. IP de las Pantallas</h3>
+<p>Las pantallas obtendran IP automaticamente (DHCP) o use estaticas:</p>
+<code>Rango: 192.168.1.101 - 192.168.1.160<br>Mascara: 255.255.255.0<br>DNS: 192.168.1.1</code>
+</div>
+<div class="offline-card">
+<h3>4. Iniciar en Modo Offline</h3>
+<p>En la laptop de la directora, abra el navegador y seleccione "Directora". En las pantallas, seleccione "Pantalla".</p>
+<code>URL Director: file:///ruta/al/archivo.html<br>O abra el archivo directamente<br>El sistema detectara la red local automaticamente</code>
+</div>
+<div class="offline-card">
+<h3>5. Prueba de Conectividad</h3>
+<p>Verifique que todas las pantallas pueden "ver" a la directora:</p>
+<code>1. Conecte todas las pantallas al WiFi<br>2. En la directora, verifique "Pantallas: 60/60"<br>3. Si no aparecen, refresque la pagina<br>4. El sistema usa WebRTC para conexion directa</code>
+</div>
+<div class="offline-card">
+<h3>6. Fallback Automatico</h3>
+<p>Si todo falla, las pantallas muestran mensajes pre-cargados:</p>
+<code>Mensajes almacenados localmente:<br>- ALERTA ROJA: Lockdown<br>- ALERTA NARANJA: Terremoto<br>- ALERTA AMARILLA: Evacuacion<br>- TODO DESPEJADO: Fin de emergencia</code>
+</div>
+</div>
+<div style="text-align:center;margin-top:40px">
+<button class="mode-btn" style="background:#238636;color:white" onclick="location.reload()">Volver al Inicio</button>
+</div>
+</div>
 
-    <script>
-        // ============================================================
-        // CONFIGURACIÓN FIREBASE - ALERTA ESCUELA
-        // ============================================================
-        const FIREBASE_CONFIG = {
-            apiKey: "AIzaSyBf3YalOZtXU3EVHECBR79U2WE6mKocnBU",
-            authDomain: "alerta-escuela-44792.firebaseapp.com",
-            databaseURL: "https://alerta-escuela-44792-default-rtdb.firebaseio.com",
-            projectId: "alerta-escuela-44792",
-            storageBucket: "alerta-escuela-44792.firebasestorage.app",
-            messagingSenderId: "255699976885",
-            appId: "1:255699976885:web:5a269779bfbc62c46bb4fc"
-        };
+<script>
+// ============================================================
+// CONFIGURACION FIREBASE
+// ============================================================
+const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyBf3YalOZtXU3EVHECBR79U2WE6mKocnBU",
+    authDomain: "alerta-escuela-44792.firebaseapp.com",
+    databaseURL: "https://alerta-escuela-44792-default-rtdb.firebaseio.com",
+    projectId: "alerta-escuela-44792",
+    storageBucket: "alerta-escuela-44792.firebasestorage.app",
+    messagingSenderId: "255699976885",
+    appId: "1:255699976885:web:5a269779bfbc62c46bb4fc"
+};
 
-        // ============================================================
-        // CONFIGURACIÓN GLOBAL
-        // ============================================================
-        const CONFIG = {
-            ICE_SERVERS: {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' },
-                    { urls: 'stun:stun2.l.google.com:19302' },
-                    { urls: 'stun:stun3.l.google.com:19302' },
-                    { urls: 'stun:stun4.l.google.com:19302' }
-                ]
-            },
-            FALLBACK_TIMEOUT: 10000,
-            TOTAL_SCREENS: 60,
-            INSTANCE_ID: Math.random().toString(36).substring(2, 15),
-            ROOM_ID: "escuela-alerta-emergencia"
-        };
+// ============================================================
+// CONFIGURACION GLOBAL
+// ============================================================
+const CONFIG = {
+    ICE_SERVERS: {
+        iceServers: [
+            {urls:'stun:stun.l.google.com:19302'},
+            {urls:'stun:stun1.l.google.com:19302'},
+            {urls:'stun:stun2.l.google.com:19302'},
+            {urls:'stun:stun3.l.google.com:19302'},
+            {urls:'stun:stun4.l.google.com:19302'},
+            {urls:'turn:openrelay.metered.ca:80',username:'open',credential:'open'},
+            {urls:'turn:openrelay.metered.ca:443',username:'open',credential:'open'},
+            {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'open',credential:'open'}
+        ]
+    },
+    FALLBACK_TIMEOUT: 10000,
+    TOTAL_SCREENS: 60,
+    INSTANCE_ID: Math.random().toString(36).substring(2,15),
+    ROOM_ID: "escuela-alerta-emergencia"
+};
 
-        // ============================================================
-        // ESTADO GLOBAL
-        // ============================================================
-        let state = {
-            mode: null,
-            isBroadcasting: false,
-            localStream: null,
-            peerConnections: new Map(),
-            db: null,
-            screenId: null,
-            currentAlert: null,
-            isOnline: navigator.onLine,
-            audioEnabled: true,
-            facingMode: 'user',
-            firebaseConnected: false,
-            screenPeerConnection: null,
-            isReceiving: false
-        };
+// ============================================================
+// ESTADO GLOBAL
+// ============================================================
+let state = {
+    mode: null,
+    isBroadcasting: false,
+    localStream: null,
+    peerConnections: new Map(),
+    db: null,
+    screenId: null,
+    currentAlert: null,
+    isOnline: navigator.onLine,
+    audioEnabled: true,
+    facingMode: 'user',
+    firebaseConnected: false,
+    screenPeerConnection: null,
+    isReceiving: false,
+    broadcastChannel: null,
+    useLocalBroadcast: false
+};
 
-        // ============================================================
-        // UTILIDADES
-        // ============================================================
-        function showToast(message, type = 'info') {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            toast.className = 'toast ' + type;
-            toast.textContent = message;
-            container.appendChild(toast);
-            setTimeout(() => toast.remove(), 5000);
-        }
+// ============================================================
+// DEBUG
+// ============================================================
+function log(msg) {
+    console.log(msg);
+    const panel = document.getElementById('debugPanel');
+    if (panel && !panel.classList.contains('hidden')) {
+        const line = document.createElement('div');
+        line.textContent = new Date().toLocaleTimeString() + ' - ' + msg;
+        panel.appendChild(line);
+        panel.scrollTop = panel.scrollHeight;
+    }
+}
+function toggleDebug() {
+    document.getElementById('debugPanel').classList.toggle('hidden');
+}
 
-        function generateScreenId() {
-            let id = localStorage.getItem('screenId');
-            if (!id) {
-                id = 'PANTALLA-' + Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-                localStorage.setItem('screenId', id);
-            }
-            return id;
-        }
+// ============================================================
+// UTILIDADES
+// ============================================================
+function showToast(message, type) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = 'toast ' + (type || 'info');
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 5000);
+}
+function generateScreenId() {
+    let id = localStorage.getItem('screenId');
+    if (!id) {
+        id = 'PANTALLA-' + Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+        localStorage.setItem('screenId', id);
+    }
+    return id;
+}
 
-        // ============================================================
-        // INICIALIZAR FIREBASE
-        // ============================================================
-        function initFirebase() {
-            try {
-                firebase.initializeApp(FIREBASE_CONFIG);
-                state.db = firebase.database();
-                state.firebaseConnected = true;
-                showToast('Conectado a Firebase', 'success');
-                return true;
-            } catch (err) {
-                console.error('Firebase error:', err);
-                showToast('Error con Firebase: ' + err.message, 'error');
-                return false;
-            }
-        }
+// ============================================================
+// INICIALIZAR FIREBASE
+// ============================================================
+function initFirebase() {
+    try {
+        firebase.initializeApp(FIREBASE_CONFIG);
+        state.db = firebase.database();
+        state.firebaseConnected = true;
+        log('Firebase inicializado correctamente');
+        showToast('Conectado a Firebase', 'success');
+        return true;
+    } catch (err) {
+        console.error('Firebase error:', err);
+        log('ERROR Firebase: ' + err.message);
+        showToast('Error con Firebase: ' + err.message, 'error');
+        return false;
+    }
+}
 
-        // ============================================================
-        // SELECCIÓN DE MODO
-        // ============================================================
-        function selectMode(mode) {
-            state.mode = mode;
-            document.getElementById('mode-selector').style.display = 'none';
+// ============================================================
+// BROADCAST CHANNEL (comunicacion local entre pestanas)
+// ============================================================
+function initBroadcastChannel() {
+    if ('BroadcastChannel' in window) {
+        state.broadcastChannel = new BroadcastChannel('alerta_escolar_v2');
+        state.useLocalBroadcast = true;
+        log('BroadcastChannel inicializado');
 
-            if (mode === 'director') {
-                initDirector();
-            } else if (mode === 'pantalla') {
-                initScreen();
-            } else if (mode === 'offline') {
-                document.getElementById('offline-config').style.display = 'flex';
-            }
-        }
+        state.broadcastChannel.onmessage = async function(event) {
+            const msg = event.data;
+            log('BroadcastChannel recibido: ' + msg.type);
 
-        // ============================================================
-        // MODO DIRECTOR
-        // ============================================================
-        async function initDirector() {
-            document.getElementById('director-panel').style.display = 'flex';
-            generateScreensGrid();
-
-            // Inicializar Firebase
-            if (!initFirebase()) {
-                updateDirectorStatus('offline', 'Error Firebase - Verifique configuración');
-                return;
-            }
-
-            // Inicializar cámara
-            try {
-                await initCamera();
-                updateDirectorStatus('online', 'Cámara lista - Conectando a Firebase...');
-            } catch (err) {
-                updateDirectorStatus('offline', 'Error de cámara: ' + err.message);
-                showToast('Error al acceder a la cámara. Verifique permisos.', 'error');
-                return;
-            }
-
-            // Configurar listeners de Firebase
-            setupDirectorFirebase();
-
-            // Detectar cambios de red
-            window.addEventListener('online', () => {
-                state.isOnline = true;
-                showToast('Conexión a Internet restaurada', 'success');
-            });
-            window.addEventListener('offline', () => {
-                state.isOnline = false;
-                showToast('Sin Internet - Funcionando en modo local', 'warning');
-            });
-        }
-
-        async function initCamera() {
-            const constraints = {
-                video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: state.facingMode },
-                audio: true
-            };
-            state.localStream = await navigator.mediaDevices.getUserMedia(constraints);
-            document.getElementById('localVideo').srcObject = state.localStream;
-        }
-
-        function updateDirectorStatus(status, text) {
-            const dot = document.getElementById('directorStatusDot');
-            const txt = document.getElementById('directorStatusText');
-            dot.className = 'status-dot ' + status;
-            txt.textContent = text;
-        }
-
-        function generateScreensGrid() {
-            const grid = document.getElementById('screensGrid');
-            grid.innerHTML = '';
-            for (let i = 1; i <= CONFIG.TOTAL_SCREENS; i++) {
-                const screen = document.createElement('div');
-                screen.className = 'screen-item disconnected';
-                screen.id = 'screen-' + i;
-                screen.textContent = i;
-                screen.title = 'Pantalla ' + i;
-                grid.appendChild(screen);
-            }
-        }
-
-        function updateScreenStatus(screenId, status) {
-            // Buscar por ID numérico (screen-1, screen-2, etc.)
-            let screenEl = document.getElementById('screen-' + screenId);
-
-            // Si no encuentra, buscar por el ID completo
-            if (!screenEl) {
-                // Extraer número si es formato PANTALLA-XXXX
-                const match = screenId.match(/\d+/);
-                if (match) {
-                    const num = parseInt(match[0]) % CONFIG.TOTAL_SCREENS;
-                    screenEl = document.getElementById('screen-' + (num === 0 ? CONFIG.TOTAL_SCREENS : num));
-                }
-            }
-
-            if (screenEl) {
-                screenEl.className = 'screen-item ' + status;
-            }
-            updateStats();
-        }
-
-        function updateStats() {
-            const connected = document.querySelectorAll('.screen-item.connected').length;
-            const receiving = document.querySelectorAll('.screen-item.receiving').length;
-            const disconnected = CONFIG.TOTAL_SCREENS - connected;
-            document.getElementById('statConnected').textContent = connected;
-            document.getElementById('statReceiving').textContent = receiving;
-            document.getElementById('statDisconnected').textContent = disconnected;
-            document.getElementById('connectedScreens').textContent = '| Pantallas: ' + connected + '/' + CONFIG.TOTAL_SCREENS;
-            document.getElementById('statMode').textContent = state.isOnline ? 'Internet (Firebase)' : 'Offline';
-        }
-
-        // ============================================================
-        // FIREBASE - DIRECTOR
-        // ============================================================
-        function setupDirectorFirebase() {
-            const roomRef = state.db.ref('rooms/' + CONFIG.ROOM_ID);
-
-            // Registrar director
-            roomRef.child('director').set({
-                id: CONFIG.INSTANCE_ID,
-                online: true,
-                timestamp: firebase.database.ServerValue.TIMESTAMP
-            });
-
-            // Mantener director online (heartbeat cada 5 segundos)
-            setInterval(() => {
-                roomRef.child('director').update({
-                    online: true,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
-                });
-            }, 5000);
-
-            // Escuchar pantallas que se conectan
-            roomRef.child('screens').on('child_added', async (snapshot) => {
-                const screenData = snapshot.val();
-                const screenId = snapshot.key;
-                if (screenData && screenData.online) {
-                    updateScreenStatus(screenId, 'connected');
-                    showToast('Pantalla ' + screenId + ' conectada', 'success');
+            if (state.mode === 'director' && msg.role === 'screen') {
+                if (msg.type === 'screen-joined') {
+                    log('Pantalla local conectada: ' + msg.screenId);
+                    updateScreenStatus(msg.screenId, 'connected');
                     if (state.isBroadcasting) {
-                        await createPeerConnection(screenId);
+                        await createLocalPeerConnection(msg.screenId);
                     }
                 }
-            });
-
-            roomRef.child('screens').on('child_changed', async (snapshot) => {
-                const screenData = snapshot.val();
-                const screenId = snapshot.key;
-                if (screenData && screenData.online) {
-                    updateScreenStatus(screenId, 'connected');
-                } else {
-                    updateScreenStatus(screenId, 'disconnected');
-                }
-            });
-
-            roomRef.child('screens').on('child_removed', (snapshot) => {
-                const screenId = snapshot.key;
-                updateScreenStatus(screenId, 'disconnected');
-                if (state.peerConnections.has(screenId)) {
-                    state.peerConnections.get(screenId).close();
-                    state.peerConnections.delete(screenId);
-                }
-            });
-
-            // Escuchar respuestas WebRTC de pantallas
-            roomRef.child('signals').on('child_added', async (snapshot) => {
-                const msg = snapshot.val();
-                if (!msg) return;
-
-                if (msg.type === 'answer' && msg.from && state.peerConnections.has(msg.from)) {
+                if (msg.type === 'answer' && state.peerConnections.has(msg.screenId)) {
+                    log('Recibida answer local de: ' + msg.screenId);
                     try {
-                        await state.peerConnections.get(msg.from).setRemoteDescription(
+                        await state.peerConnections.get(msg.screenId).setRemoteDescription(
                             new RTCSessionDescription(msg.answer)
                         );
                     } catch (e) {
-                        console.error('Error setting remote description:', e);
+                        log('Error setting local answer: ' + e.message);
                     }
                 }
-                if (msg.type === 'ice-candidate' && msg.from && state.peerConnections.has(msg.from)) {
+                if (msg.type === 'ice-candidate' && state.peerConnections.has(msg.screenId)) {
                     try {
-                        await state.peerConnections.get(msg.from).addIceCandidate(
+                        await state.peerConnections.get(msg.screenId).addIceCandidate(
                             new RTCIceCandidate(msg.candidate)
                         );
                     } catch (e) {
-                        console.error('Error adding ICE candidate:', e);
+                        log('Error adding local ICE: ' + e.message);
                     }
                 }
-
-                // Limpiar mensaje procesado
-                snapshot.ref.remove().catch(() => {});
-            });
-
-            updateDirectorStatus('online', 'Conectado - Esperando pantallas...');
-        }
-
-        // ============================================================
-        // WEBRTC - CREAR CONEXIÓN DIRECTOR → PANTALLA
-        // ============================================================
-        async function createPeerConnection(screenId) {
-            if (state.peerConnections.has(screenId)) {
-                // Ya existe, solo actualizar tracks
-                const existingPc = state.peerConnections.get(screenId);
-                const senders = existingPc.getSenders();
-                if (state.localStream) {
-                    state.localStream.getTracks().forEach(track => {
-                        const sender = senders.find(s => s.track && s.track.kind === track.kind);
-                        if (sender) {
-                            sender.replaceTrack(track);
-                        } else {
-                            existingPc.addTrack(track, state.localStream);
-                        }
-                    });
-                }
-                return existingPc;
             }
 
-            const pc = new RTCPeerConnection(CONFIG.ICE_SERVERS);
-            state.peerConnections.set(screenId, pc);
-
-            if (state.localStream) {
-                state.localStream.getTracks().forEach(track => {
-                    pc.addTrack(track, state.localStream);
-                });
-            }
-
-            pc.onicecandidate = (event) => {
-                if (event.candidate && state.db) {
-                    state.db.ref('rooms/' + CONFIG.ROOM_ID + '/signals/' + Date.now()).set({
-                        type: 'ice-candidate',
-                        to: screenId,
-                        from: 'director',
-                        candidate: event.candidate.toJSON()
-                    });
-                }
-            };
-
-            pc.onconnectionstatechange = () => {
-                console.log('Connection state with ' + screenId + ':', pc.connectionState);
-                if (pc.connectionState === 'connected') {
-                    updateScreenStatus(screenId, 'receiving');
-                    showToast('Pantalla ' + screenId + ' recibiendo video', 'success');
-                } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-                    updateScreenStatus(screenId, 'connected');
-                }
-            };
-
-            pc.oniceconnectionstatechange = () => {
-                console.log('ICE state with ' + screenId + ':', pc.iceConnectionState);
-            };
-
-            try {
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-
-                if (state.db) {
-                    state.db.ref('rooms/' + CONFIG.ROOM_ID + '/signals/' + Date.now()).set({
-                        type: 'offer',
-                        to: screenId,
-                        from: 'director',
-                        offer: offer.toJSON()
-                    });
-                }
-            } catch (e) {
-                console.error('Error creating offer:', e);
-            }
-
-            return pc;
-        }
-
-        // ============================================================
-        // CONTROLES DE TRANSMISIÓN
-        // ============================================================
-        async function startBroadcast() {
-            if (!state.localStream) {
-                showToast('Cámara no inicializada', 'error');
-                return;
-            }
-            state.isBroadcasting = true;
-            document.getElementById('btnStartStream').disabled = true;
-            document.getElementById('btnStopStream').disabled = false;
-
-            const connectedScreens = document.querySelectorAll('.screen-item.connected');
-            let count = 0;
-            for (const screen of connectedScreens) {
-                const screenId = screen.id.replace('screen-', '');
-                // Obtener el ID real de Firebase
-                const actualScreenId = screen.getAttribute('data-screen-id') || screenId;
-                await createPeerConnection(actualScreenId);
-                count++;
-            }
-
-            // Notificar inicio de broadcast
-            if (state.db) {
-                state.db.ref('rooms/' + CONFIG.ROOM_ID + '/broadcast').set({
-                    active: true,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
-                });
-            }
-
-            showToast('Transmisión iniciada en ' + count + ' pantallas', 'success');
-            updateDirectorStatus('online', 'Transmitiendo en vivo');
-        }
-
-        function stopBroadcast() {
-            state.isBroadcasting = false;
-            state.peerConnections.forEach((pc, id) => {
-                pc.close();
-                updateScreenStatus(id, 'connected');
-            });
-            state.peerConnections.clear();
-
-            document.getElementById('btnStartStream').disabled = false;
-            document.getElementById('btnStopStream').disabled = true;
-
-            if (state.db) {
-                state.db.ref('rooms/' + CONFIG.ROOM_ID + '/broadcast').set({
-                    active: false,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
-                });
-            }
-
-            showToast('Transmisión detenida', 'info');
-            updateDirectorStatus('online', 'Transmisión detenida');
-        }
-
-        function toggleAudio() {
-            if (state.localStream) {
-                const audioTrack = state.localStream.getAudioTracks()[0];
-                if (audioTrack) {
-                    audioTrack.enabled = !audioTrack.enabled;
-                    state.audioEnabled = audioTrack.enabled;
-                    document.getElementById('btnMute').textContent = state.audioEnabled ? '🎤 Audio: ON' : '🔇 Audio: OFF';
-                }
-            }
-        }
-
-        async function switchCamera() {
-            state.facingMode = state.facingMode === 'user' ? 'environment' : 'user';
-            try {
-                await initCamera();
-                showToast('Cámara cambiada', 'success');
-            } catch (err) {
-                showToast('Error al cambiar cámara', 'error');
-            }
-        }
-
-        // ============================================================
-        // ENVÍO DE ALERTAS
-        // ============================================================
-        function sendAlert(type, instructions) {
-            document.querySelectorAll('.alert-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById('btn' + type.charAt(0).toUpperCase() + type.slice(1)).classList.add('active');
-            state.currentAlert = { type, instructions };
-
-            if (state.db) {
-                state.db.ref('rooms/' + CONFIG.ROOM_ID + '/alert').set({
-                    type: type,
-                    instructions: instructions,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP,
-                    from: 'director'
-                });
-            }
-
-            showToast('ALERTA ' + type.toUpperCase() + ' enviada a todas las pantallas', 'warning');
-        }
-
-        // ============================================================
-        // MODO PANTALLA
-        // ============================================================
-        async function initScreen() {
-            document.getElementById('screen-panel').style.display = 'block';
-            state.screenId = generateScreenId();
-            document.getElementById('screenIdValue').textContent = state.screenId;
-
-            showFallback(true, '📡', 'Conectando al sistema...', 'Esperando señal de la directora');
-            updateNetworkIndicator();
-
-            // Inicializar Firebase
-            if (!initFirebase()) {
-                updateScreenStatus('offline', 'Error Firebase');
-                return;
-            }
-
-            await setupScreenFirebase();
-
-            setTimeout(() => {
-                if (!state.isReceiving) {
-                    showFallback(true, '⚠️', 'Sin conexión con la directora', 'Verifique la red o espere a que inicie la transmisión');
-                }
-            }, CONFIG.FALLBACK_TIMEOUT);
-
-            setTimeout(() => {
-                if (document.documentElement.requestFullscreen) {
-                    document.documentElement.requestFullscreen().catch(() => {});
-                }
-            }, 1000);
-        }
-
-        async function setupScreenFirebase() {
-            const roomRef = state.db.ref('rooms/' + CONFIG.ROOM_ID);
-
-            // Registrar pantalla
-            roomRef.child('screens/' + state.screenId).set({
-                online: true,
-                timestamp: firebase.database.ServerValue.TIMESTAMP
-            });
-
-            // Mantener pantalla online (heartbeat cada 5 segundos)
-            const heartbeat = setInterval(() => {
-                roomRef.child('screens/' + state.screenId).update({
-                    online: true,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
-                });
-            }, 5000);
-
-            // Marcar offline al cerrar
-            window.addEventListener('beforeunload', () => {
-                clearInterval(heartbeat);
-                roomRef.child('screens/' + state.screenId).remove();
-            });
-
-            // Escuchar alertas
-            roomRef.child('alert').on('value', (snapshot) => {
-                const alert = snapshot.val();
-                if (alert && alert.type) {
-                    showEmergencyAlert(alert.type, alert.instructions);
-                }
-            });
-
-            // Escuchar inicio de broadcast
-            roomRef.child('broadcast').on('value', (snapshot) => {
-                const broadcast = snapshot.val();
-                if (broadcast && broadcast.active) {
+            if (state.mode === 'screen' && msg.role === 'director') {
+                if (msg.type === 'director-joined') {
+                    log('Directora local detectada');
                     showFallback(false);
+                    updateScreenStatus('online', 'Directora local detectada');
                 }
-            });
-
-            // Escuchar señales WebRTC del director
-            roomRef.child('signals').on('child_added', async (snapshot) => {
-                const msg = snapshot.val();
-                if (!msg || msg.to !== state.screenId) return;
-
                 if (msg.type === 'offer') {
-                    await handleWebRTCOffer(msg);
+                    log('Recibida offer local');
+                    await handleLocalOffer(msg);
                 }
                 if (msg.type === 'ice-candidate' && state.screenPeerConnection) {
                     try {
@@ -793,208 +408,778 @@
                             new RTCIceCandidate(msg.candidate)
                         );
                     } catch (e) {
-                        console.error('Error adding ICE candidate:', e);
+                        log('Error adding local ICE screen: ' + e.message);
                     }
                 }
+                if (msg.type === 'alert') {
+                    log('Alerta local recibida: ' + msg.alertType);
+                    showEmergencyAlert(msg.alertType, msg.instructions);
+                }
+                if (msg.type === 'broadcast-started') {
+                    showFallback(false);
+                }
+                if (msg.type === 'broadcast-stopped') {
+                    showFallback(true, 'Transmision pausada', 'Esperando que la directora reanude');
+                }
+            }
+        };
+        return true;
+    } else {
+        log('BroadcastChannel NO soportado');
+        return false;
+    }
+}
 
-                snapshot.ref.remove().catch(() => {});
+// ============================================================
+// SELECCION DE MODO
+// ============================================================
+function selectMode(mode) {
+    state.mode = mode;
+    document.getElementById('mode-selector').style.display = 'none';
+    initBroadcastChannel();
+    if (mode === 'director') {
+        initDirector();
+    } else if (mode === 'pantalla') {
+        initScreen();
+    } else if (mode === 'offline') {
+        document.getElementById('offline-config').style.display = 'flex';
+    }
+}
+
+// ============================================================
+// MODO DIRECTOR
+// ============================================================
+async function initDirector() {
+    document.getElementById('director-panel').style.display = 'flex';
+    generateScreensGrid();
+    if (!initFirebase()) {
+        updateDirectorStatus('offline', 'Error Firebase - Verifique configuracion');
+        return;
+    }
+    try {
+        await initCamera();
+        updateDirectorStatus('online', 'Camara lista - Conectando...');
+    } catch (err) {
+        updateDirectorStatus('offline', 'Error de camara: ' + err.message);
+        showToast('Error al acceder a la camara. Verifique permisos.', 'error');
+        return;
+    }
+    if (state.broadcastChannel) {
+        state.broadcastChannel.postMessage({
+            role: 'director',
+            type: 'director-joined',
+            timestamp: Date.now()
+        });
+    }
+    setupDirectorFirebase();
+    window.addEventListener('online', function() {
+        state.isOnline = true;
+        showToast('Conexion a Internet restaurada', 'success');
+    });
+    window.addEventListener('offline', function() {
+        state.isOnline = false;
+        showToast('Sin Internet - Funcionando en modo local', 'warning');
+    });
+}
+
+async function initCamera() {
+    const constraints = {
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: state.facingMode },
+        audio: true
+    };
+    state.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    document.getElementById('localVideo').srcObject = state.localStream;
+    log('Camara inicializada');
+}
+
+function updateDirectorStatus(status, text) {
+    const dot = document.getElementById('directorStatusDot');
+    const txt = document.getElementById('directorStatusText');
+    dot.className = 'status-dot ' + status;
+    txt.textContent = text;
+}
+
+function generateScreensGrid() {
+    const grid = document.getElementById('screensGrid');
+    grid.innerHTML = '';
+    for (let i = 1; i <= CONFIG.TOTAL_SCREENS; i++) {
+        const screen = document.createElement('div');
+        screen.className = 'screen-item disconnected';
+        screen.id = 'screen-' + i;
+        screen.textContent = i;
+        screen.title = 'Pantalla ' + i;
+        grid.appendChild(screen);
+    }
+}
+
+function updateScreenStatus(screenId, status) {
+    let screenEl = document.getElementById('screen-' + screenId);
+    if (!screenEl && screenId.startsWith('PANTALLA-')) {
+        const num = parseInt(screenId.replace('PANTALLA-', '')) % CONFIG.TOTAL_SCREENS;
+        screenEl = document.getElementById('screen-' + (num === 0 ? CONFIG.TOTAL_SCREENS : num));
+    }
+    if (!screenEl) {
+        const disconnected = document.querySelectorAll('.screen-item.disconnected');
+        if (disconnected.length > 0) {
+            screenEl = disconnected[0];
+            screenEl.id = 'screen-' + screenId;
+        }
+    }
+    if (screenEl) {
+        screenEl.className = 'screen-item ' + status;
+        screenEl.setAttribute('data-screen-id', screenId);
+    }
+    updateStats();
+}
+
+function updateStats() {
+    const connected = document.querySelectorAll('.screen-item.connected').length;
+    const receiving = document.querySelectorAll('.screen-item.receiving').length;
+    const disconnected = CONFIG.TOTAL_SCREENS - connected;
+    document.getElementById('statConnected').textContent = connected;
+    document.getElementById('statReceiving').textContent = receiving;
+    document.getElementById('statDisconnected').textContent = disconnected;
+    document.getElementById('connectedScreens').textContent = '| Pantallas: ' + connected + '/' + CONFIG.TOTAL_SCREENS;
+    document.getElementById('statMode').textContent = state.isOnline ? 'Internet (Firebase)' : 'Offline';
+}
+
+// ============================================================
+// FIREBASE - DIRECTOR
+// ============================================================
+function setupDirectorFirebase() {
+    const roomRef = state.db.ref('rooms/' + CONFIG.ROOM_ID);
+    roomRef.child('director').set({
+        id: CONFIG.INSTANCE_ID,
+        online: true,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
+    setInterval(function() {
+        roomRef.child('director').update({
+            online: true,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+    }, 5000);
+
+    roomRef.child('screens').on('child_added', async function(snapshot) {
+        const screenData = snapshot.val();
+        const screenId = snapshot.key;
+        if (screenData && screenData.online) {
+            log('Pantalla Firebase conectada: ' + screenId);
+            updateScreenStatus(screenId, 'connected');
+            showToast('Pantalla ' + screenId + ' conectada', 'success');
+            if (state.isBroadcasting) {
+                await createPeerConnection(screenId);
+            }
+        }
+    });
+
+    roomRef.child('screens').on('child_changed', async function(snapshot) {
+        const screenData = snapshot.val();
+        const screenId = snapshot.key;
+        if (screenData && screenData.online) {
+            updateScreenStatus(screenId, 'connected');
+        } else {
+            updateScreenStatus(screenId, 'disconnected');
+        }
+    });
+
+    roomRef.child('screens').on('child_removed', function(snapshot) {
+        const screenId = snapshot.key;
+        updateScreenStatus(screenId, 'disconnected');
+        if (state.peerConnections.has(screenId)) {
+            state.peerConnections.get(screenId).close();
+            state.peerConnections.delete(screenId);
+        }
+    });
+
+    roomRef.child('signals').on('child_added', async function(snapshot) {
+        const msg = snapshot.val();
+        if (!msg) return;
+        if (msg.type === 'answer' && msg.from && state.peerConnections.has(msg.from)) {
+            log('Recibida answer Firebase de: ' + msg.from);
+            try {
+                await state.peerConnections.get(msg.from).setRemoteDescription(
+                    new RTCSessionDescription(msg.answer)
+                );
+            } catch (e) {
+                log('Error setting Firebase answer: ' + e.message);
+            }
+        }
+        if (msg.type === 'ice-candidate' && msg.from && state.peerConnections.has(msg.from)) {
+            try {
+                await state.peerConnections.get(msg.from).addIceCandidate(
+                    new RTCIceCandidate(msg.candidate)
+                );
+            } catch (e) {
+                log('Error adding Firebase ICE: ' + e.message);
+            }
+        }
+        snapshot.ref.remove().catch(function(){});
+    });
+
+    updateDirectorStatus('online', 'Conectado - Esperando pantallas...');
+}
+
+// ============================================================
+// WEBRTC - CREAR CONEXION (Firebase)
+// ============================================================
+async function createPeerConnection(screenId) {
+    if (state.peerConnections.has(screenId)) {
+        const existingPc = state.peerConnections.get(screenId);
+        const senders = existingPc.getSenders();
+        if (state.localStream) {
+            state.localStream.getTracks().forEach(function(track) {
+                const sender = senders.find(function(s) { return s.track && s.track.kind === track.kind; });
+                if (sender) {
+                    sender.replaceTrack(track);
+                } else {
+                    existingPc.addTrack(track, state.localStream);
+                }
             });
+        }
+        return existingPc;
+    }
 
-            updateScreenStatus('online', 'Conectado al sistema');
+    log('Creando PeerConnection para: ' + screenId);
+    const pc = new RTCPeerConnection(CONFIG.ICE_SERVERS);
+    state.peerConnections.set(screenId, pc);
+
+    if (state.localStream) {
+        state.localStream.getTracks().forEach(function(track) {
+            pc.addTrack(track, state.localStream);
+            log('Track agregado: ' + track.kind + ' para ' + screenId);
+        });
+    }
+
+    pc.onicecandidate = function(event) {
+        if (event.candidate) {
+            log('ICE candidate generado para ' + screenId);
+            if (state.db) {
+                state.db.ref('rooms/' + CONFIG.ROOM_ID + '/signals/' + Date.now()).set({
+                    type: 'ice-candidate',
+                    to: screenId,
+                    from: 'director',
+                    candidate: event.candidate.toJSON()
+                });
+            }
+            if (state.broadcastChannel) {
+                state.broadcastChannel.postMessage({
+                    role: 'director',
+                    type: 'ice-candidate',
+                    to: screenId,
+                    from: 'director',
+                    candidate: event.candidate.toJSON()
+                });
+            }
+        }
+    };
+
+    pc.onconnectionstatechange = function() {
+        log('Connection state ' + screenId + ': ' + pc.connectionState);
+        if (pc.connectionState === 'connected') {
+            updateScreenStatus(screenId, 'receiving');
+            showToast('Pantalla ' + screenId + ' recibiendo video', 'success');
+        } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+            updateScreenStatus(screenId, 'connected');
+        }
+    };
+
+    pc.oniceconnectionstatechange = function() {
+        log('ICE state ' + screenId + ': ' + pc.iceConnectionState);
+    };
+
+    try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        log('Offer creada para ' + screenId);
+
+        if (state.db) {
+            state.db.ref('rooms/' + CONFIG.ROOM_ID + '/signals/' + Date.now()).set({
+                type: 'offer',
+                to: screenId,
+                from: 'director',
+                offer: offer.toJSON()
+            });
+        }
+        if (state.broadcastChannel) {
+            state.broadcastChannel.postMessage({
+                role: 'director',
+                type: 'offer',
+                to: screenId,
+                from: 'director',
+                offer: offer.toJSON()
+            });
+        }
+    } catch (e) {
+        log('Error creating offer: ' + e.message);
+    }
+
+    return pc;
+}
+
+// ============================================================
+// WEBRTC - CREAR CONEXION LOCAL (BroadcastChannel)
+// ============================================================
+async function createLocalPeerConnection(screenId) {
+    log('Creando conexion LOCAL para: ' + screenId);
+    if (state.peerConnections.has(screenId)) {
+        return state.peerConnections.get(screenId);
+    }
+    const pc = new RTCPeerConnection({ iceServers: [] });
+    state.peerConnections.set(screenId, pc);
+    if (state.localStream) {
+        state.localStream.getTracks().forEach(function(track) {
+            pc.addTrack(track, state.localStream);
+        });
+    }
+    pc.onicecandidate = function(event) {
+        if (event.candidate && state.broadcastChannel) {
+            state.broadcastChannel.postMessage({
+                role: 'director',
+                type: 'ice-candidate',
+                to: screenId,
+                from: 'director',
+                candidate: event.candidate.toJSON()
+            });
+        }
+    };
+    pc.onconnectionstatechange = function() {
+        log('Local connection state ' + screenId + ': ' + pc.connectionState);
+        if (pc.connectionState === 'connected') {
+            updateScreenStatus(screenId, 'receiving');
+            showToast('Pantalla local ' + screenId + ' recibiendo video', 'success');
+        }
+    };
+    try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        if (state.broadcastChannel) {
+            state.broadcastChannel.postMessage({
+                role: 'director',
+                type: 'offer',
+                to: screenId,
+                from: 'director',
+                offer: offer.toJSON()
+            });
+            log('Offer local enviada a ' + screenId);
+        }
+    } catch (e) {
+        log('Error creating local offer: ' + e.message);
+    }
+    return pc;
+}
+
+// ============================================================
+// CONTROLES DE TRANSMISION
+// ============================================================
+async function startBroadcast() {
+    if (!state.localStream) {
+        showToast('Camara no inicializada', 'error');
+        return;
+    }
+    state.isBroadcasting = true;
+    document.getElementById('btnStartStream').disabled = true;
+    document.getElementById('btnStopStream').disabled = false;
+    if (state.broadcastChannel) {
+        state.broadcastChannel.postMessage({
+            role: 'director',
+            type: 'broadcast-started',
+            timestamp: Date.now()
+        });
+    }
+    const connectedScreens = document.querySelectorAll('.screen-item.connected');
+    let count = 0;
+    for (let i = 0; i < connectedScreens.length; i++) {
+        const screen = connectedScreens[i];
+        const screenId = screen.getAttribute('data-screen-id');
+        if (screenId) {
+            if (state.useLocalBroadcast) {
+                await createLocalPeerConnection(screenId);
+            } else {
+                await createPeerConnection(screenId);
+            }
+            count++;
+        }
+    }
+    if (state.db) {
+        state.db.ref('rooms/' + CONFIG.ROOM_ID + '/broadcast').set({
+            active: true,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+    }
+    showToast('Transmision iniciada en ' + count + ' pantallas', 'success');
+    updateDirectorStatus('online', 'Transmitiendo en vivo');
+    log('Broadcast iniciado');
+}
+
+function stopBroadcast() {
+    state.isBroadcasting = false;
+    state.peerConnections.forEach(function(pc, id) {
+        pc.close();
+        updateScreenStatus(id, 'connected');
+    });
+    state.peerConnections.clear();
+    document.getElementById('btnStartStream').disabled = false;
+    document.getElementById('btnStopStream').disabled = true;
+    if (state.broadcastChannel) {
+        state.broadcastChannel.postMessage({
+            role: 'director',
+            type: 'broadcast-stopped',
+            timestamp: Date.now()
+        });
+    }
+    if (state.db) {
+        state.db.ref('rooms/' + CONFIG.ROOM_ID + '/broadcast').set({
+            active: false,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+    }
+    showToast('Transmision detenida', 'info');
+    updateDirectorStatus('online', 'Transmision detenida');
+    log('Broadcast detenido');
+}
+
+function toggleAudio() {
+    if (state.localStream) {
+        const audioTrack = state.localStream.getAudioTracks()[0];
+        if (audioTrack) {
+            audioTrack.enabled = !audioTrack.enabled;
+            state.audioEnabled = audioTrack.enabled;
+            document.getElementById('btnMute').textContent = state.audioEnabled ? 'Audio: ON' : 'Audio: OFF';
+        }
+    }
+}
+
+async function switchCamera() {
+    state.facingMode = state.facingMode === 'user' ? 'environment' : 'user';
+    try {
+        await initCamera();
+        showToast('Camara cambiada', 'success');
+    } catch (err) {
+        showToast('Error al cambiar camara', 'error');
+    }
+}
+
+// ============================================================
+// ENVIO DE ALERTAS
+// ============================================================
+function sendAlert(type, instructions) {
+    document.querySelectorAll('.alert-btn').forEach(function(btn) { btn.classList.remove('active'); });
+    document.getElementById('btn' + type.charAt(0).toUpperCase() + type.slice(1)).classList.add('active');
+    state.currentAlert = { type: instructions };
+    if (state.broadcastChannel) {
+        state.broadcastChannel.postMessage({
+            role: 'director',
+            type: 'alert',
+            alertType: type,
+            instructions: instructions,
+            timestamp: Date.now()
+        });
+    }
+    if (state.db) {
+        state.db.ref('rooms/' + CONFIG.ROOM_ID + '/alert').set({
+            type: type,
+            instructions: instructions,
+            timestamp: firebase.database.ServerValue.TIMESTAMP,
+            from: 'director'
+        });
+    }
+    showToast('ALERTA ' + type.toUpperCase() + ' enviada', 'warning');
+    log('Alerta enviada: ' + type);
+}
+
+// ============================================================
+// MODO PANTALLA
+// ============================================================
+async function initScreen() {
+    document.getElementById('screen-panel').style.display = 'block';
+    state.screenId = generateScreenId();
+    document.getElementById('screenIdValue').textContent = state.screenId;
+    showFallback(true, 'Conectando al sistema...', 'Esperando senal de la directora');
+    updateNetworkIndicator();
+    if (!initFirebase()) {
+        updateScreenStatus('offline', 'Error Firebase');
+        return;
+    }
+    await setupScreenFirebase();
+    if (state.broadcastChannel) {
+        state.broadcastChannel.postMessage({
+            role: 'screen',
+            type: 'screen-joined',
+            screenId: state.screenId,
+            timestamp: Date.now()
+        });
+    }
+    setTimeout(function() {
+        if (!state.isReceiving) {
+            showFallback(true, 'Sin conexion con la directora', 'Verifique la red o espere a que inicie la transmision');
+        }
+    }, CONFIG.FALLBACK_TIMEOUT);
+    setTimeout(function() {
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(function(){});
+        }
+    }, 1000);
+}
+
+async function setupScreenFirebase() {
+    const roomRef = state.db.ref('rooms/' + CONFIG.ROOM_ID);
+    roomRef.child('screens/' + state.screenId).set({
+        online: true,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
+    const heartbeat = setInterval(function() {
+        roomRef.child('screens/' + state.screenId).update({
+            online: true,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+    }, 5000);
+    window.addEventListener('beforeunload', function() {
+        clearInterval(heartbeat);
+        roomRef.child('screens/' + state.screenId).remove();
+    });
+    roomRef.child('alert').on('value', function(snapshot) {
+        const alert = snapshot.val();
+        if (alert && alert.type) {
+            showEmergencyAlert(alert.type, alert.instructions);
+        }
+    });
+    roomRef.child('broadcast').on('value', function(snapshot) {
+        const broadcast = snapshot.val();
+        if (broadcast && broadcast.active) {
             showFallback(false);
         }
-
-        async function setupScreenWebRTC() {
-            if (state.screenPeerConnection) {
-                state.screenPeerConnection.close();
-            }
-
-            const pc = new RTCPeerConnection(CONFIG.ICE_SERVERS);
-            state.screenPeerConnection = pc;
-
-            pc.ontrack = (event) => {
-                if (event.streams && event.streams[0]) {
-                    document.getElementById('remoteVideo').srcObject = event.streams[0];
-                    state.isReceiving = true;
-                    showFallback(false);
-                    updateScreenStatus('online', 'Recibiendo transmisión en vivo');
-                }
-            };
-
-            pc.onconnectionstatechange = () => {
-                console.log('Screen connection state:', pc.connectionState);
-                if (pc.connectionState === 'connected') {
-                    state.isReceiving = true;
-                } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-                    state.isReceiving = false;
-                    showFallback(true, '⚠️', 'Conexión perdida', 'Reconectando...');
-                }
-            };
-
-            pc.onicecandidate = (event) => {
-                if (event.candidate && state.db) {
-                    state.db.ref('rooms/' + CONFIG.ROOM_ID + '/signals/' + Date.now()).set({
-                        type: 'ice-candidate',
-                        from: state.screenId,
-                        to: 'director',
-                        candidate: event.candidate.toJSON()
-                    });
-                }
-            };
+    });
+    roomRef.child('signals').on('child_added', async function(snapshot) {
+        const msg = snapshot.val();
+        if (!msg || msg.to !== state.screenId) return;
+        log('Senal Firebase recibida: ' + msg.type);
+        if (msg.type === 'offer') {
+            await handleWebRTCOffer(msg, false);
         }
-
-        async function handleWebRTCOffer(msg) {
-            if (!state.screenPeerConnection) {
-                await setupScreenWebRTC();
-            }
-
-            const pc = state.screenPeerConnection;
-
+        if (msg.type === 'ice-candidate' && state.screenPeerConnection) {
             try {
-                await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
-
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-
-                if (state.db) {
-                    state.db.ref('rooms/' + CONFIG.ROOM_ID + '/signals/' + Date.now()).set({
-                        type: 'answer',
-                        from: state.screenId,
-                        to: 'director',
-                        answer: answer.toJSON()
-                    });
-                }
-
-                showToast('Conectando con la directora...', 'info');
+                await state.screenPeerConnection.addIceCandidate(
+                    new RTCIceCandidate(msg.candidate)
+                );
             } catch (e) {
-                console.error('Error handling offer:', e);
-                showToast('Error al conectar con la directora', 'error');
+                log('Error adding Firebase ICE screen: ' + e.message);
             }
         }
+        snapshot.ref.remove().catch(function(){});
+    });
+    updateScreenStatus('online', 'Conectado al sistema');
+    showFallback(false);
+}
 
-        // ============================================================
-        // VISUALIZACIÓN EN PANTALLA
-        // ============================================================
-        function showEmergencyAlert(type, instructions) {
-            const overlay = document.getElementById('emergencyOverlay');
-            const banner = document.getElementById('emergencyBanner');
-            const instr = document.getElementById('emergencyInstructions');
+async function handleLocalOffer(msg) {
+    log('Procesando offer local...');
+    await handleWebRTCOffer(msg, true);
+}
 
-            const configs = {
-                roja: { class: 'emergency-roja', text: '🔴 ALERTA ROJA - AMENAZA INMEDIATA', color: '#d32f2f' },
-                naranja: { class: 'emergency-naranja', text: '🟠 ALERTA NARANJA - TERREMOTO', color: '#f57c00' },
-                amarilla: { class: 'emergency-amarilla', text: '🟡 ALERTA AMARILLA - EVACUACIÓN', color: '#f9a825' },
-                azul: { class: 'emergency-azul', text: '🔵 ALERTA AZUL - SHELTER IN PLACE', color: '#1565c0' },
-                verde: { class: 'emergency-verde', text: '🟢 TODO DESPEJADO', color: '#2e7d32' }
-            };
-
-            const config = configs[type] || configs.azul;
-            banner.className = 'emergency-banner ' + config.class;
-            banner.textContent = config.text;
-            instr.textContent = instructions;
-            instr.style.borderColor = config.color;
-            overlay.classList.add('active');
-
-            playAlertSound(type);
-
-            if (type === 'verde') {
-                setTimeout(() => { overlay.classList.remove('active'); }, 10000);
+async function setupScreenWebRTC(isLocal) {
+    if (state.screenPeerConnection) {
+        state.screenPeerConnection.close();
+    }
+    const config = isLocal ? { iceServers: [] } : CONFIG.ICE_SERVERS;
+    const pc = new RTCPeerConnection(config);
+    state.screenPeerConnection = pc;
+    pc.ontrack = function(event) {
+        log('Track recibido! ' + event.track.kind);
+        if (event.streams && event.streams[0]) {
+            document.getElementById('remoteVideo').srcObject = event.streams[0];
+            state.isReceiving = true;
+            showFallback(false);
+            updateScreenStatus('online', 'Recibiendo transmision en vivo');
+            showToast('Video recibido!', 'success');
+        }
+    };
+    pc.onconnectionstatechange = function() {
+        log('Screen connection state: ' + pc.connectionState);
+        if (pc.connectionState === 'connected') {
+            state.isReceiving = true;
+            showToast('Conexion establecida!', 'success');
+        } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+            state.isReceiving = false;
+            showFallback(true, 'Conexion perdida', 'Reconectando...');
+        }
+    };
+    pc.onicecandidate = function(event) {
+        if (event.candidate) {
+            log('Screen ICE candidate generado');
+            if (state.broadcastChannel) {
+                state.broadcastChannel.postMessage({
+                    role: 'screen',
+                    type: 'ice-candidate',
+                    from: state.screenId,
+                    to: 'director',
+                    candidate: event.candidate.toJSON()
+                });
+            }
+            if (state.db) {
+                state.db.ref('rooms/' + CONFIG.ROOM_ID + '/signals/' + Date.now()).set({
+                    type: 'ice-candidate',
+                    from: state.screenId,
+                    to: 'director',
+                    candidate: event.candidate.toJSON()
+                });
             }
         }
+    };
+    return pc;
+}
 
-        function playAlertSound(type) {
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                const gainNode = audioCtx.createGain();
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-
-                const patterns = {
-                    roja: { freq: 800, type: 'square', duration: 0.3, repeat: 5 },
-                    naranja: { freq: 600, type: 'sawtooth', duration: 0.5, repeat: 3 },
-                    amarilla: { freq: 500, type: 'sine', duration: 0.4, repeat: 4 },
-                    azul: { freq: 400, type: 'sine', duration: 0.6, repeat: 2 },
-                    verde: { freq: 523, type: 'sine', duration: 0.8, repeat: 1 }
-                };
-
-                const pattern = patterns[type] || patterns.azul;
-                let count = 0;
-
-                const playBeep = () => {
-                    if (count >= pattern.repeat) { oscillator.stop(); return; }
-                    oscillator.frequency.setValueAtTime(pattern.freq, audioCtx.currentTime);
-                    oscillator.type = pattern.type;
-                    gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + pattern.duration);
-                    count++;
-                    setTimeout(playBeep, pattern.duration * 1000 + 200);
-                };
-
-                oscillator.start();
-                playBeep();
-            } catch (e) { console.error('Error reproduciendo sonido:', e); }
+async function handleWebRTCOffer(msg, isLocal) {
+    log('HandleWebRTCOffer - isLocal: ' + isLocal);
+    if (!state.screenPeerConnection) {
+        await setupScreenWebRTC(isLocal);
+    }
+    const pc = state.screenPeerConnection;
+    try {
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
+        log('Remote description set');
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        log('Answer creada');
+        if (state.broadcastChannel) {
+            state.broadcastChannel.postMessage({
+                role: 'screen',
+                type: 'answer',
+                from: state.screenId,
+                to: 'director',
+                answer: answer.toJSON()
+            });
+            log('Answer local enviada');
         }
-
-        function showFallback(show, icon, text, subtext) {
-            const fallback = document.getElementById('fallbackMessage');
-            if (show) {
-                document.getElementById('fallbackIcon').textContent = icon;
-                document.getElementById('fallbackText').textContent = text;
-                document.getElementById('fallbackSubtext').textContent = subtext;
-                fallback.classList.add('active');
-            } else {
-                fallback.classList.remove('active');
-            }
+        if (state.db) {
+            state.db.ref('rooms/' + CONFIG.ROOM_ID + '/signals/' + Date.now()).set({
+                type: 'answer',
+                from: state.screenId,
+                to: 'director',
+                answer: answer.toJSON()
+            });
         }
+        showToast('Conectando con la directora...', 'info');
+    } catch (e) {
+        log('Error handling offer: ' + e.message);
+        showToast('Error al conectar: ' + e.message, 'error');
+    }
+}
 
-        function updateScreenStatus(status, text) {
-            const dot = document.getElementById('screenStatusDot');
-            const txt = document.getElementById('screenStatusText');
-            dot.className = 'status-dot ' + status;
-            txt.textContent = text;
-        }
+// ============================================================
+// VISUALIZACION EN PANTALLA
+// ============================================================
+function showEmergencyAlert(type, instructions) {
+    const overlay = document.getElementById('emergencyOverlay');
+    const banner = document.getElementById('emergencyBanner');
+    const instr = document.getElementById('emergencyInstructions');
+    const configs = {
+        roja: { class: 'emergency-roja', text: 'ALERTA ROJA - AMENAZA INMEDIATA', color: '#d32f2f' },
+        naranja: { class: 'emergency-naranja', text: 'ALERTA NARANJA - TERREMOTO', color: '#f57c00' },
+        amarilla: { class: 'emergency-amarilla', text: 'ALERTA AMARILLA - EVACUACION', color: '#f9a825' },
+        azul: { class: 'emergency-azul', text: 'ALERTA AZUL - SHELTER IN PLACE', color: '#1565c0' },
+        verde: { class: 'emergency-verde', text: 'TODO DESPEJADO', color: '#2e7d32' }
+    };
+    const config = configs[type] || configs.azul;
+    banner.className = 'emergency-banner ' + config.class;
+    banner.textContent = config.text;
+    instr.textContent = instructions;
+    instr.style.borderColor = config.color;
+    overlay.classList.add('active');
+    playAlertSound(type);
+    if (type === 'verde') {
+        setTimeout(function() { overlay.classList.remove('active'); }, 10000);
+    }
+}
 
-        function updateNetworkIndicator() {
-            const icon = document.getElementById('networkIcon');
-            const text = document.getElementById('networkText');
-            if (navigator.onLine) { icon.textContent = '🌐'; text.textContent = 'Internet'; }
-            else { icon.textContent = '📡'; text.textContent = 'LAN Local'; }
-        }
-
-        function toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(() => {});
-            } else { document.exitFullscreen(); }
-        }
-
-        // ============================================================
-        // MENSAJES PRE-CARGADOS (FALLBACK)
-        // ============================================================
-        const PRELOADED_ALERTS = {
-            roja: { title: '🔴 ALERTA ROJA - AMENAZA INMEDIATA', instructions: 'Lockdown total. Cierren puertas, apaguen luces, silencio absoluto. No abran por ningún motivo. Alejense de puertas y ventanas.', color: '#d32f2f' },
-            naranja: { title: '🟠 ALERTA NARANJA - TERREMOTO', instructions: 'Agáchense, cúbranse bajo mesas resistentes y agárrense. Aléjense de ventanas y objetos que puedan caer. No usen elevadores.', color: '#f57c00' },
-            amarilla: { title: '🟡 ALERTA AMARILLA - EVACUACIÓN', instructions: 'Diríjanse a la salida más cercana en orden y calmados. No corran. No regresen por pertenencias. Usen las escaleras, no elevadores.', color: '#f9a825' },
-            azul: { title: '🔵 ALERTA AZUL - SHELTER IN PLACE', instructions: 'Manténganse en sus aulas. Cierren puertas y ventanas. Apaguen sistemas de ventilación. Esperen más información.', color: '#1565c0' },
-            verde: { title: '🟢 TODO DESPEJADO', instructions: 'La situación está bajo control. Reanuden actividades normales. Sigan las instrucciones de sus maestros.', color: '#2e7d32' }
+function playAlertSound(type) {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        const patterns = {
+            roja: { freq: 800, type: 'square', duration: 0.3, repeat: 5 },
+            naranja: { freq: 600, type: 'sawtooth', duration: 0.5, repeat: 3 },
+            amarilla: { freq: 500, type: 'sine', duration: 0.4, repeat: 4 },
+            azul: { freq: 400, type: 'sine', duration: 0.6, repeat: 2 },
+            verde: { freq: 523, type: 'sine', duration: 0.8, repeat: 1 }
         };
-
-        // ============================================================
-        // INICIALIZACIÓN
-        // ============================================================
-        window.addEventListener('load', () => {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                showToast('Este navegador no soporta acceso a cámara. Use Chrome o Edge.', 'error');
-            }
-            if (!window.RTCPeerConnection) {
-                showToast('WebRTC no soportado. Actualice el navegador.', 'error');
-            }
-            localStorage.setItem('preloadedAlerts', JSON.stringify(PRELOADED_ALERTS));
-        });
-
-        if ('wakeLock' in navigator) {
-            navigator.wakeLock.request('screen').catch(() => {});
+        const pattern = patterns[type] || patterns.azul;
+        let count = 0;
+        function playBeep() {
+            if (count >= pattern.repeat) { oscillator.stop(); return; }
+            oscillator.frequency.setValueAtTime(pattern.freq, audioCtx.currentTime);
+            oscillator.type = pattern.type;
+            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + pattern.duration);
+            count++;
+            setTimeout(playBeep, pattern.duration * 1000 + 200);
         }
-    </script>
+        oscillator.start();
+        playBeep();
+    } catch (e) { console.error('Error reproduciendo sonido:', e); }
+}
+
+function showFallback(show, text, subtext) {
+    const fallback = document.getElementById('fallbackMessage');
+    if (show) {
+        document.getElementById('fallbackText').textContent = text;
+        document.getElementById('fallbackSubtext').textContent = subtext;
+        fallback.classList.add('active');
+    } else {
+        fallback.classList.remove('active');
+    }
+}
+
+function updateScreenStatus(status, text) {
+    const dot = document.getElementById('screenStatusDot');
+    const txt = document.getElementById('screenStatusText');
+    dot.className = 'status-dot ' + status;
+    txt.textContent = text;
+}
+
+function updateNetworkIndicator() {
+    const icon = document.getElementById('networkIcon');
+    const text = document.getElementById('networkText');
+    if (navigator.onLine) { icon.textContent = 'OK'; text.textContent = 'Internet'; }
+    else { icon.textContent = 'LAN'; text.textContent = 'LAN Local'; }
+}
+
+function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(function(){});
+    } else { document.exitFullscreen(); }
+}
+
+// ============================================================
+// MENSAJES PRE-CARGADOS (FALLBACK)
+// ============================================================
+const PRELOADED_ALERTS = {
+    roja: { title: 'ALERTA ROJA - AMENAZA INMEDIATA', instructions: 'Lockdown total. Cierren puertas, apaguen luces, silencio absoluto. No abran por ningun motivo. Alejense de puertas y ventanas.', color: '#d32f2f' },
+    naranja: { title: 'ALERTA NARANJA - TERREMOTO', instructions: 'Agachense, cubranse bajo mesas resistentes y agarrense. Alejense de ventanas y objetos que puedan caer. No usen elevadores.', color: '#f57c00' },
+    amarilla: { title: 'ALERTA AMARILLA - EVACUACION', instructions: 'Dirijanse a la salida mas cercana en orden y calmados. No corran. No regresen por pertenencias. Usen las escaleras, no elevadores.', color: '#f9a825' },
+    azul: { title: 'ALERTA AZUL - SHELTER IN PLACE', instructions: 'Mantenganse en sus aulas. Cierren puertas y ventanas. Apaguen sistemas de ventilacion. Esperen mas informacion.', color: '#1565c0' },
+    verde: { title: 'TODO DESPEJADO', instructions: 'La situacion esta bajo control. Reanuden actividades normales. Sigan las instrucciones de sus maestros.', color: '#2e7d32' }
+};
+
+// ============================================================
+// INICIALIZACION
+// ============================================================
+window.addEventListener('load', function() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast('Este navegador no soporta acceso a camara. Use Chrome o Edge.', 'error');
+    }
+    if (!window.RTCPeerConnection) {
+        showToast('WebRTC no soportado. Actualice el navegador.', 'error');
+    }
+    localStorage.setItem('preloadedAlerts', JSON.stringify(PRELOADED_ALERTS));
+});
+
+if ('wakeLock' in navigator) {
+    navigator.wakeLock.request('screen').catch(function(){});
+}
+</script>
 </body>
 </html>
