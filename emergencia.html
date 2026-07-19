@@ -1,0 +1,1767 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alerta Escolar - Sistema de Emergencia</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: white;
+            overflow: hidden;
+        }
+
+        /* ====== PANTALLA DE INICIO / SELECCIÓN DE MODO ====== */
+        #mode-selector {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            transition: opacity 0.5s;
+        }
+
+        #mode-selector h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(229, 57, 53, 0.5);
+        }
+
+        #mode-selector .subtitle {
+            font-size: 1.2rem;
+            color: #aaa;
+            margin-bottom: 50px;
+        }
+
+        .mode-buttons {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .mode-btn {
+            padding: 40px 60px;
+            font-size: 1.5rem;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .mode-btn.director {
+            background: linear-gradient(135deg, #e53935, #c62828);
+            color: white;
+            box-shadow: 0 10px 40px rgba(229, 57, 53, 0.4);
+        }
+
+        .mode-btn.director:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 50px rgba(229, 57, 53, 0.6);
+        }
+
+        .mode-btn.pantalla {
+            background: linear-gradient(135deg, #1565c0, #0d47a1);
+            color: white;
+            box-shadow: 0 10px 40px rgba(21, 101, 192, 0.4);
+        }
+
+        .mode-btn.pantalla:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 50px rgba(21, 101, 192, 0.6);
+        }
+
+        .mode-btn.offline {
+            background: linear-gradient(135deg, #f57c00, #e65100);
+            color: white;
+            box-shadow: 0 10px 40px rgba(245, 124, 0, 0.4);
+        }
+
+        .mode-btn.offline:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 50px rgba(245, 124, 0, 0.6);
+        }
+
+        /* ====== PANEL DEL DIRECTOR ====== */
+        #director-panel {
+            display: none;
+            width: 100vw;
+            height: 100vh;
+            background: #0d1117;
+            flex-direction: column;
+        }
+
+        .director-header {
+            background: #161b22;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #30363d;
+        }
+
+        .director-header h2 {
+            color: #e53935;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.online {
+            background: #00e676;
+            box-shadow: 0 0 10px #00e676;
+        }
+
+        .status-dot.offline {
+            background: #ff5252;
+            box-shadow: 0 0 10px #ff5252;
+        }
+
+        .status-dot.connecting {
+            background: #ffd740;
+            box-shadow: 0 0 10px #ffd740;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .director-main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Panel de Alertas */
+        .alerts-panel {
+            width: 350px;
+            background: #161b22;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            border-right: 2px solid #30363d;
+            overflow-y: auto;
+        }
+
+        .alert-btn {
+            padding: 25px;
+            border: none;
+            border-radius: 15px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .alert-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .alert-btn:hover::before {
+            left: 100%;
+        }
+
+        .alert-btn:active {
+            transform: scale(0.98);
+        }
+
+        .alert-roja {
+            background: linear-gradient(135deg, #b71c1c, #d32f2f);
+            color: white;
+            box-shadow: 0 5px 20px rgba(183, 28, 28, 0.4);
+        }
+
+        .alert-naranja {
+            background: linear-gradient(135deg, #e65100, #f57c00);
+            color: white;
+            box-shadow: 0 5px 20px rgba(230, 81, 0, 0.4);
+        }
+
+        .alert-amarilla {
+            background: linear-gradient(135deg, #f9a825, #ffee58);
+            color: #333;
+            box-shadow: 0 5px 20px rgba(249, 168, 37, 0.4);
+        }
+
+        .alert-verde {
+            background: linear-gradient(135deg, #2e7d32, #66bb6a);
+            color: white;
+            box-shadow: 0 5px 20px rgba(46, 125, 50, 0.4);
+        }
+
+        .alert-azul {
+            background: linear-gradient(135deg, #1565c0, #42a5f5);
+            color: white;
+            box-shadow: 0 5px 20px rgba(21, 101, 192, 0.4);
+        }
+
+        .alert-btn.active {
+            box-shadow: 0 0 30px currentColor;
+            animation: emergency-pulse 1s infinite;
+        }
+
+        @keyframes emergency-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        /* Panel de Video */
+        .video-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .video-preview-container {
+            flex: 1;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+            border: 3px solid #30363d;
+        }
+
+        #localVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+        }
+
+        .video-controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .control-btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .control-btn.iniciar {
+            background: #00e676;
+            color: #000;
+        }
+
+        .control-btn.detener {
+            background: #ff5252;
+            color: white;
+        }
+
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Panel de Estado de Pantallas */
+        .screens-panel {
+            width: 300px;
+            background: #161b22;
+            padding: 20px;
+            border-left: 2px solid #30363d;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .screens-panel h3 {
+            margin-bottom: 15px;
+            color: #58a6ff;
+            font-size: 1.1rem;
+        }
+
+        .screens-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .screen-item {
+            aspect-ratio: 1;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: bold;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .screen-item.connected {
+            background: #238636;
+            color: white;
+        }
+
+        .screen-item.disconnected {
+            background: #30363d;
+            color: #8b949e;
+        }
+
+        .screen-item.receiving {
+            background: #1f6feb;
+            animation: screen-blink 1s infinite;
+        }
+
+        @keyframes screen-blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .stats-box {
+            background: #0d1117;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: auto;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        /* ====== PANTALLA RECEPTORA ====== */
+        #screen-panel {
+            display: none;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            position: relative;
+        }
+
+        #remoteVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .screen-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: none;
+        }
+
+        .screen-overlay.active {
+            display: block;
+        }
+
+        .emergency-banner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 30px;
+            text-align: center;
+            font-size: 3rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            animation: banner-slide 0.5s ease-out;
+            z-index: 100;
+        }
+
+        @keyframes banner-slide {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(0); }
+        }
+
+        .emergency-roja {
+            background: #d32f2f;
+            color: white;
+            box-shadow: 0 0 50px rgba(211, 47, 47, 0.8);
+        }
+
+        .emergency-naranja {
+            background: #f57c00;
+            color: white;
+            box-shadow: 0 0 50px rgba(245, 124, 0, 0.8);
+        }
+
+        .emergency-amarilla {
+            background: #ffee58;
+            color: #333;
+            box-shadow: 0 0 50px rgba(255, 238, 88, 0.8);
+        }
+
+        .emergency-verde {
+            background: #66bb6a;
+            color: white;
+            box-shadow: 0 0 50px rgba(102, 187, 106, 0.8);
+        }
+
+        .emergency-azul {
+            background: #42a5f5;
+            color: white;
+            box-shadow: 0 0 50px rgba(66, 165, 245, 0.8);
+        }
+
+        .emergency-instructions {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.85);
+            padding: 30px 50px;
+            border-radius: 20px;
+            font-size: 1.5rem;
+            text-align: center;
+            max-width: 80%;
+            border: 3px solid currentColor;
+        }
+
+        .connection-status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 101;
+        }
+
+        .screen-id {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            z-index: 101;
+        }
+
+        /* Fallback cuando no hay video */
+        .fallback-message {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: #1a1a2e;
+            text-align: center;
+            padding: 50px;
+        }
+
+        .fallback-message.active {
+            display: flex;
+        }
+
+        .fallback-icon {
+            font-size: 8rem;
+            margin-bottom: 30px;
+        }
+
+        .fallback-text {
+            font-size: 2rem;
+            margin-bottom: 20px;
+        }
+
+        .fallback-subtext {
+            font-size: 1.2rem;
+            color: #aaa;
+        }
+
+        /* ====== CONFIGURACIÓN OFFLINE ====== */
+        #offline-config {
+            display: none;
+            width: 100vw;
+            height: 100vh;
+            background: #0d1117;
+            flex-direction: column;
+            padding: 40px;
+        }
+
+        .offline-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .offline-header h2 {
+            color: #f57c00;
+            font-size: 2rem;
+        }
+
+        .offline-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .offline-card {
+            background: #161b22;
+            padding: 30px;
+            border-radius: 15px;
+            border: 2px solid #30363d;
+        }
+
+        .offline-card h3 {
+            color: #58a6ff;
+            margin-bottom: 15px;
+        }
+
+        .offline-card p {
+            color: #8b949e;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .offline-card code {
+            background: #0d1117;
+            padding: 15px;
+            border-radius: 8px;
+            display: block;
+            font-family: 'Courier New', monospace;
+            color: #7ee787;
+            font-size: 0.85rem;
+            overflow-x: auto;
+        }
+
+        /* ====== RESPONSIVE ====== */
+        @media (max-width: 1200px) {
+            .alerts-panel { width: 280px; }
+            .screens-panel { width: 250px; }
+        }
+
+        @media (max-width: 768px) {
+            .director-main { flex-direction: column; }
+            .alerts-panel, .screens-panel { width: 100%; max-height: 300px; }
+            .mode-btn { padding: 30px 40px; font-size: 1.2rem; }
+        }
+
+        /* Animación de loading */
+        .loading-spinner {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            border: 4px solid #30363d;
+            border-top-color: #e53935;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            z-index: 99999;
+            display: none;
+        }
+
+        @keyframes spin {
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            background: #161b22;
+            border-left: 4px solid;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+            animation: toast-in 0.3s ease-out;
+            max-width: 350px;
+        }
+
+        @keyframes toast-in {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .toast.success { border-left-color: #00e676; }
+        .toast.error { border-left-color: #ff5252; }
+        .toast.warning { border-left-color: #ffd740; }
+        .toast.info { border-left-color: #42a5f5; }
+
+        /* Fullscreen button */
+        .fullscreen-btn {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            z-index: 101;
+            font-size: 0.9rem;
+        }
+
+        /* Network indicator */
+        .network-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            z-index: 101;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Spinner -->
+    <div class="loading-spinner" id="loadingSpinner"></div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- ====== SELECTOR DE MODO ====== -->
+    <div id="mode-selector">
+        <h1>🚨 ALERTA ESCOLAR</h1>
+        <p class="subtitle">Sistema de Comunicación de Emergencia en Tiempo Real</p>
+        <div class="mode-buttons">
+            <button class="mode-btn director" onclick="selectMode('director')">
+                👩‍💼<br>Directora
+            </button>
+            <button class="mode-btn pantalla" onclick="selectMode('pantalla')">
+                📺<br>Pantalla
+            </button>
+            <button class="mode-btn offline" onclick="selectMode('offline')">
+                📡<br>Config. Offline
+            </button>
+        </div>
+        <p style="margin-top: 40px; color: #666; font-size: 0.9rem;">
+            Funciona con o sin Internet • Latencia mínima • 60 pantallas simultáneas
+        </p>
+    </div>
+
+    <!-- ====== PANEL DEL DIRECTOR ====== -->
+    <div id="director-panel">
+        <div class="director-header">
+            <h2>🚨 PANEL DE CONTROL - DIRECTORA</h2>
+            <div class="status-indicator">
+                <span>Estado:</span>
+                <div class="status-dot connecting" id="directorStatusDot"></div>
+                <span id="directorStatusText">Conectando...</span>
+                <span id="connectedScreens">| Pantallas: 0/60</span>
+            </div>
+        </div>
+
+        <div class="director-main">
+            <!-- Panel de Alertas -->
+            <div class="alerts-panel">
+                <h3 style="color: #e53935; margin-bottom: 10px; text-align: center;">🚨 ALERTAS</h3>
+                
+                <button class="alert-btn alert-roja" id="btnRoja" onclick="sendAlert('roja', 'AMENAZA INMEDIATA - Lockdown total. Cierren puertas, apaguen luces, silencio absoluto. No abran por ningún motivo.')">
+                    🔴 ALERTA ROJA<br>
+                    <small style="font-size: 0.8rem; opacity: 0.9;">Tiroteo / Intruso</small>
+                </button>
+                
+                <button class="alert-btn alert-naranja" id="btnNaranja" onclick="sendAlert('naranja', 'TERREMOTO - Agáchense, cúbranse y agárrense. Aléjense de ventanas. Esperen instrucciones.')">
+                    🟠 ALERTA NARANJA<br>
+                    <small style="font-size: 0.8rem; opacity: 0.9;">Terremoto / Sismo</small>
+                </button>
+                
+                <button class="alert-btn alert-amarilla" id="btnAmarilla" onclick="sendAlert('amarilla', 'EVACUACIÓN - Diríjanse a la salida más cercana en orden. No corran. Dejen sus pertenencias.')">
+                    🟡 ALERTA AMARILLA<br>
+                    <small style="font-size: 0.8rem; opacity: 0.9;">Inundación / Evacuación</small>
+                </button>
+                
+                <button class="alert-btn alert-azul" id="btnAzul" onclick="sendAlert('azul', 'SHELTER IN PLACE - Manténganse en sus aulas. Cierren puertas. Esperen más información.')">
+                    🔵 ALERTA AZUL<br>
+                    <small style="font-size: 0.8rem; opacity: 0.9;">Shelter in Place</small>
+                </button>
+                
+                <button class="alert-btn alert-verde" id="btnVerde" onclick="sendAlert('verde', 'TODO DESPEJADO - La situación está bajo control. Reanuden actividades normales.')">
+                    🟢 TODO DESPEJADO<br>
+                    <small style="font-size: 0.8rem; opacity: 0.9;">Fin de emergencia</small>
+                </button>
+
+                <div style="margin-top: auto; padding: 15px; background: #0d1117; border-radius: 10px; font-size: 0.85rem; color: #8b949e;">
+                    <strong style="color: #fff;">💡 Instrucciones:</strong><br>
+                    1. Haga clic en una alerta para enviarla<br>
+                    2. Use "Iniciar Transmisión" para video<br>
+                    3. El audio se transmite automáticamente
+                </div>
+            </div>
+
+            <!-- Panel de Video -->
+            <div class="video-panel">
+                <div class="video-preview-container">
+                    <video id="localVideo" autoplay muted playsinline></video>
+                    <div class="video-overlay">
+                        <span id="videoStatus">📹 Cámara lista</span>
+                    </div>
+                </div>
+                
+                <div class="video-controls">
+                    <button class="control-btn iniciar" id="btnStartStream" onclick="startBroadcast()">
+                        ▶️ INICIAR TRANSMISIÓN
+                    </button>
+                    <button class="control-btn detener" id="btnStopStream" onclick="stopBroadcast()" disabled>
+                        ⏹️ DETENER TRANSMISIÓN
+                    </button>
+                    <button class="control-btn" style="background: #30363d; color: white;" onclick="toggleAudio()" id="btnMute">
+                        🎤 Audio: ON
+                    </button>
+                    <button class="control-btn" style="background: #30363d; color: white;" onclick="switchCamera()">
+                        🔄 Cambiar Cámara
+                    </button>
+                </div>
+            </div>
+
+            <!-- Panel de Pantallas Conectadas -->
+            <div class="screens-panel">
+                <h3>📺 Pantallas Conectadas</h3>
+                <div class="screens-grid" id="screensGrid">
+                    <!-- Generado dinámicamente -->
+                </div>
+                
+                <div class="stats-box">
+                    <div class="stat-row">
+                        <span>Conectadas:</span>
+                        <span id="statConnected" style="color: #00e676;">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Recibiendo video:</span>
+                        <span id="statReceiving" style="color: #58a6ff;">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Desconectadas:</span>
+                        <span id="statDisconnected" style="color: #ff5252;">60</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Latencia promedio:</span>
+                        <span id="statLatency" style="color: #ffd740;">-- ms</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Modo red:</span>
+                        <span id="statMode" style="color: #ff9800;">Detectando...</span>
+                    </div>
+                </div>
+
+                <button class="control-btn" style="background: #b71c1c; color: white; margin-top: 15px; width: 100%;" onclick="location.reload()">
+                    🔄 Cambiar Modo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== PANTALLA RECEPTORA ====== -->
+    <div id="screen-panel">
+        <video id="remoteVideo" autoplay playsinline></video>
+        
+        <div class="screen-overlay" id="emergencyOverlay">
+            <div class="emergency-banner" id="emergencyBanner">
+                ALERTA
+            </div>
+            <div class="emergency-instructions" id="emergencyInstructions">
+                Esperando instrucciones...
+            </div>
+        </div>
+
+        <div class="fallback-message" id="fallbackMessage">
+            <div class="fallback-icon" id="fallbackIcon">📡</div>
+            <div class="fallback-text" id="fallbackText">Conectando al sistema...</div>
+            <div class="fallback-subtext" id="fallbackSubtext">Esperando señal de la directora</div>
+        </div>
+
+        <div class="connection-status">
+            <div class="status-dot connecting" id="screenStatusDot"></div>
+            <span id="screenStatusText">Conectando...</span>
+        </div>
+
+        <div class="network-indicator" id="networkIndicator">
+            <span id="networkIcon">🌐</span>
+            <span id="networkText">Internet</span>
+        </div>
+
+        <div class="screen-id" id="screenId">
+            Pantalla: <span id="screenIdValue">--</span>
+        </div>
+
+        <button class="fullscreen-btn" onclick="toggleFullscreen()">
+            ⛶ Pantalla Completa
+        </button>
+    </div>
+
+    <!-- ====== CONFIGURACIÓN OFFLINE ====== -->
+    <div id="offline-config">
+        <div class="offline-header">
+            <h2>📡 Configuración para Modo Sin Internet</h2>
+            <p style="color: #8b949e; margin-top: 10px;">Configure la red local para emergencias cuando no haya Internet</p>
+        </div>
+
+        <div class="offline-grid">
+            <div class="offline-card">
+                <h3>1. Router Local (Sin Internet)</h3>
+                <p>Configure un router WiFi local. Las pantallas y la laptop de la directora deben conectarse a esta red.</p>
+                <code>
+SSID: ESCUELA-EMERGENCIA<br>
+Password: AlertaSegura2024<br>
+IP Router: 192.168.1.1
+                </code>
+            </div>
+
+            <div class="offline-card">
+                <h3>2. Laptop de la Directora</h3>
+                <p>La laptop debe tener la IP estática para ser el servidor de señalización:</p>
+                <code>
+IP: 192.168.1.100<br>
+Máscara: 255.255.255.0<br>
+Gateway: 192.168.1.1
+                </code>
+            </div>
+
+            <div class="offline-card">
+                <h3>3. IP de las Pantallas</h3>
+                <p>Las pantallas obtendrán IP automáticamente (DHCP) o use estáticas:</p>
+                <code>
+Rango: 192.168.1.101 - 192.168.1.160<br>
+Máscara: 255.255.255.0<br>
+DNS: 192.168.1.1
+                </code>
+            </div>
+
+            <div class="offline-card">
+                <h3>4. Iniciar en Modo Offline</h3>
+                <p>En la laptop de la directora, abra el navegador y seleccione "Directora". En las pantallas, seleccione "Pantalla".</p>
+                <code>
+URL Director: file:///ruta/al/archivo.html<br>
+O abra el archivo directamente<br>
+El sistema detectará la red local automáticamente
+                </code>
+            </div>
+
+            <div class="offline-card">
+                <h3>5. Prueba de Conectividad</h3>
+                <p>Verifique que todas las pantallas pueden "ver" a la directora:</p>
+                <code>
+1. Conecte todas las pantallas al WiFi<br>
+2. En la directora, verifique "Pantallas: 60/60"<br>
+3. Si no aparecen, refresque la página<br>
+4. El sistema usa WebRTC para conexión directa
+                </code>
+            </div>
+
+            <div class="offline-card">
+                <h3>6. Fallback Automático</h3>
+                <p>Si todo falla, las pantallas muestran mensajes pre-cargados:</p>
+                <code>
+Mensajes almacenados localmente:<br>
+- ALERTA ROJA: Lockdown<br>
+- ALERTA NARANJA: Terremoto<br>
+- ALERTA AMARILLA: Evacuación<br>
+- TODO DESPEJADO: Fin de emergencia
+                </code>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 40px;">
+            <button class="mode-btn" style="background: #238636; color: white;" onclick="location.reload()">
+                ⬅️ Volver al Inicio
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ==================== CONFIGURACIÓN GLOBAL ====================
+        const CONFIG = {
+            // Servidor de señalización (puede ser local o remoto)
+            SIGNAL_SERVER: 'wss://alerta-escolar-signaling.herokuapp.com', // Cambiar por tu servidor
+            // Fallback a servidor local si no hay Internet
+            LOCAL_SIGNAL_SERVER: 'ws://192.168.1.100:8080',
+            
+            // Configuración WebRTC
+            ICE_SERVERS: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    // TURN server para NAT traversal (configurar el tuyo)
+                    // {
+                    //     urls: 'turn:tu-servidor-turn.com:3478',
+                    //     username: 'usuario',
+                    //     credential: 'password'
+                    // }
+                ]
+            },
+            
+            // Tiempo de espera antes de fallback
+            FALLBACK_TIMEOUT: 10000, // 10 segundos
+            
+            // Total de pantallas esperadas
+            TOTAL_SCREENS: 60,
+            
+            // ID único para esta instancia
+            INSTANCE_ID: Math.random().toString(36).substring(2, 15)
+        };
+
+        // ==================== ESTADO GLOBAL ====================
+        let state = {
+            mode: null, // 'director' o 'screen'
+            isBroadcasting: false,
+            localStream: null,
+            peerConnections: new Map(), // Map<screenId, RTCPeerConnection>
+            ws: null,
+            screenId: null,
+            currentAlert: null,
+            isOnline: navigator.onLine,
+            useLocalNetwork: false,
+            audioEnabled: true,
+            facingMode: 'user'
+        };
+
+        // ==================== UTILIDADES ====================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        }
+
+        function generateScreenId() {
+            // Generar ID basado en MAC/IP o aleatorio persistente
+            let id = localStorage.getItem('screenId');
+            if (!id) {
+                id = 'PANTALLA-' + Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+                localStorage.setItem('screenId', id);
+            }
+            return id;
+        }
+
+        // ==================== SELECCIÓN DE MODO ====================
+        function selectMode(mode) {
+            state.mode = mode;
+            document.getElementById('mode-selector').style.display = 'none';
+            
+            if (mode === 'director') {
+                initDirector();
+            } else if (mode === 'pantalla') {
+                initScreen();
+            } else if (mode === 'offline') {
+                document.getElementById('offline-config').style.display = 'flex';
+            }
+        }
+
+        // ==================== MODO DIRECTOR ====================
+        async function initDirector() {
+            document.getElementById('director-panel').style.display = 'flex';
+            generateScreensGrid();
+            
+            // Inicializar cámara
+            try {
+                await initCamera();
+                updateDirectorStatus('online', 'Cámara lista - Conectando señalización...');
+            } catch (err) {
+                updateDirectorStatus('offline', 'Error de cámara: ' + err.message);
+                showToast('Error al acceder a la cámara. Verifique permisos.', 'error');
+            }
+            
+            // Conectar a servidor de señalización
+            connectSignalingServer();
+            
+            // Detectar cambios de red
+            window.addEventListener('online', () => {
+                state.isOnline = true;
+                showToast('Conexión a Internet restaurada', 'success');
+                if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+                    connectSignalingServer();
+                }
+            });
+            
+            window.addEventListener('offline', () => {
+                state.isOnline = false;
+                showToast('Sin Internet - Cambiando a modo local', 'warning');
+                // Intentar conexión local
+                connectLocalSignaling();
+            });
+        }
+
+        async function initCamera() {
+            const constraints = {
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: state.facingMode
+                },
+                audio: true
+            };
+            
+            state.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+            document.getElementById('localVideo').srcObject = state.localStream;
+        }
+
+        function updateDirectorStatus(status, text) {
+            const dot = document.getElementById('directorStatusDot');
+            const txt = document.getElementById('directorStatusText');
+            
+            dot.className = 'status-dot ' + status;
+            txt.textContent = text;
+        }
+
+        function generateScreensGrid() {
+            const grid = document.getElementById('screensGrid');
+            grid.innerHTML = '';
+            
+            for (let i = 1; i <= CONFIG.TOTAL_SCREENS; i++) {
+                const screen = document.createElement('div');
+                screen.className = 'screen-item disconnected';
+                screen.id = `screen-${i}`;
+                screen.textContent = i;
+                screen.title = `Pantalla ${i}`;
+                grid.appendChild(screen);
+            }
+        }
+
+        function updateScreenStatus(screenId, status) {
+            // Buscar por ID o número
+            const screenEl = document.getElementById(`screen-${screenId}`) || 
+                              document.getElementById(screenId);
+            
+            if (screenEl) {
+                screenEl.className = 'screen-item ' + status;
+            }
+            
+            // Actualizar estadísticas
+            updateStats();
+        }
+
+        function updateStats() {
+            const connected = document.querySelectorAll('.screen-item.connected').length;
+            const receiving = document.querySelectorAll('.screen-item.receiving').length;
+            const disconnected = CONFIG.TOTAL_SCREENS - connected;
+            
+            document.getElementById('statConnected').textContent = connected;
+            document.getElementById('statReceiving').textContent = receiving;
+            document.getElementById('statDisconnected').textContent = disconnected;
+            document.getElementById('connectedScreens').textContent = `| Pantallas: ${connected}/${CONFIG.TOTAL_SCREENS}`;
+            
+            const mode = state.isOnline ? (state.useLocalNetwork ? 'LAN Local' : 'Internet') : 'Offline';
+            document.getElementById('statMode').textContent = mode;
+        }
+
+        // ==================== SERVIDOR DE SEÑALIZACIÓN ====================
+        function connectSignalingServer() {
+            if (state.ws && state.ws.readyState === WebSocket.OPEN) return;
+            
+            updateDirectorStatus('connecting', 'Conectando a servidor...');
+            
+            try {
+                state.ws = new WebSocket(CONFIG.SIGNAL_SERVER);
+                
+                state.ws.onopen = () => {
+                    updateDirectorStatus('online', 'Conectado - Esperando pantallas...');
+                    showToast('Conectado al servidor de señalización', 'success');
+                    
+                    // Registrar como director
+                    state.ws.send(JSON.stringify({
+                        type: 'register',
+                        role: 'director',
+                        id: CONFIG.INSTANCE_ID
+                    }));
+                };
+                
+                state.ws.onmessage = async (event) => {
+                    const msg = JSON.parse(event.data);
+                    await handleSignalingMessage(msg);
+                };
+                
+                state.ws.onclose = () => {
+                    updateDirectorStatus('offline', 'Desconectado - Reintentando...');
+                    showToast('Conexión perdida. Reintentando...', 'warning');
+                    setTimeout(connectSignalingServer, 3000);
+                };
+                
+                state.ws.onerror = (err) => {
+                    console.error('WebSocket error:', err);
+                    state.useLocalNetwork = true;
+                    connectLocalSignaling();
+                };
+                
+            } catch (err) {
+                console.error('Error conectando:', err);
+                state.useLocalNetwork = true;
+                connectLocalSignaling();
+            }
+        }
+
+        function connectLocalSignaling() {
+            // Intentar conexión local si no hay Internet
+            try {
+                state.ws = new WebSocket(CONFIG.LOCAL_SIGNAL_SERVER);
+                
+                state.ws.onopen = () => {
+                    updateDirectorStatus('online', 'Conectado vía LAN Local');
+                    showToast('Conectado a red local', 'success');
+                    
+                    state.ws.send(JSON.stringify({
+                        type: 'register',
+                        role: 'director',
+                        id: CONFIG.INSTANCE_ID,
+                        local: true
+                    }));
+                };
+                
+                state.ws.onmessage = async (event) => {
+                    const msg = JSON.parse(event.data);
+                    await handleSignalingMessage(msg);
+                };
+                
+            } catch (err) {
+                // Si no hay servidor local, usar modo P2P con BroadcastChannel
+                setupLocalP2P();
+            }
+        }
+
+        function setupLocalP2P() {
+            // Usar BroadcastChannel para comunicación local entre pestañas
+            if ('BroadcastChannel' in window) {
+                const channel = new BroadcastChannel('alerta_escolar');
+                
+                channel.onmessage = async (event) => {
+                    const msg = event.data;
+                    if (msg.role === 'screen') {
+                        // Simular mensaje de señalización
+                        await handleSignalingMessage({
+                            type: 'offer',
+                            from: msg.screenId,
+                            offer: msg.offer
+                        });
+                    }
+                };
+                
+                state.localChannel = channel;
+                updateDirectorStatus('online', 'Modo P2P Local activo');
+                showToast('Usando comunicación directa entre pestañas', 'info');
+            }
+        }
+
+        async function handleSignalingMessage(msg) {
+            switch (msg.type) {
+                case 'screen-joined':
+                    // Nueva pantalla conectada
+                    const screenId = msg.screenId;
+                    updateScreenStatus(screenId, 'connected');
+                    showToast(`Pantalla ${screenId} conectada`, 'success');
+                    
+                    // Si estamos transmitiendo, iniciar conexión WebRTC
+                    if (state.isBroadcasting) {
+                        await createPeerConnection(screenId);
+                    }
+                    break;
+                    
+                case 'screen-left':
+                    updateScreenStatus(msg.screenId, 'disconnected');
+                    if (state.peerConnections.has(msg.screenId)) {
+                        state.peerConnections.get(msg.screenId).close();
+                        state.peerConnections.delete(msg.screenId);
+                    }
+                    break;
+                    
+                case 'answer':
+                    // Respuesta de una pantalla a nuestra oferta
+                    if (state.peerConnections.has(msg.from)) {
+                        await state.peerConnections.get(msg.from).setRemoteDescription(
+                            new RTCSessionDescription(msg.answer)
+                        );
+                    }
+                    break;
+                    
+                case 'ice-candidate':
+                    if (state.peerConnections.has(msg.from)) {
+                        await state.peerConnections.get(msg.from).addIceCandidate(
+                            new RTCIceCandidate(msg.candidate)
+                        );
+                    }
+                    break;
+                    
+                case 'screens-list':
+                    // Actualizar lista de pantallas conectadas
+                    msg.screens.forEach(screen => {
+                        updateScreenStatus(screen.id, 'connected');
+                    });
+                    break;
+            }
+        }
+
+        // ==================== WEBRTC - CREAR CONEXIÓN ====================
+        async function createPeerConnection(screenId) {
+            const pc = new RTCPeerConnection(CONFIG.ICE_SERVERS);
+            state.peerConnections.set(screenId, pc);
+            
+            // Agregar tracks de video/audio
+            if (state.localStream) {
+                state.localStream.getTracks().forEach(track => {
+                    pc.addTrack(track, state.localStream);
+                });
+            }
+            
+            // Evento ICE candidate
+            pc.onicecandidate = (event) => {
+                if (event.candidate && state.ws) {
+                    state.ws.send(JSON.stringify({
+                        type: 'ice-candidate',
+                        to: screenId,
+                        candidate: event.candidate
+                    }));
+                }
+            };
+            
+            // Evento de conexión establecida
+            pc.onconnectionstatechange = () => {
+                if (pc.connectionState === 'connected') {
+                    updateScreenStatus(screenId, 'receiving');
+                    showToast(`Pantalla ${screenId} recibiendo video`, 'success');
+                }
+            };
+            
+            // Crear oferta
+            const offer = await pc.createOffer({
+                offerToReceiveAudio: false,
+                offerToReceiveVideo: false
+            });
+            await pc.setLocalDescription(offer);
+            
+            // Enviar oferta a través de señalización
+            if (state.ws) {
+                state.ws.send(JSON.stringify({
+                    type: 'offer',
+                    to: screenId,
+                    offer: offer
+                }));
+            }
+            
+            // También enviar por BroadcastChannel si está disponible
+            if (state.localChannel) {
+                state.localChannel.postMessage({
+                    role: 'director',
+                    screenId: screenId,
+                    offer: offer
+                });
+            }
+            
+            return pc;
+        }
+
+        // ==================== CONTROLES DE TRANSMISIÓN ====================
+        async function startBroadcast() {
+            if (!state.localStream) {
+                showToast('Cámara no inicializada', 'error');
+                return;
+            }
+            
+            state.isBroadcasting = true;
+            
+            document.getElementById('btnStartStream').disabled = true;
+            document.getElementById('btnStopStream').disabled = false;
+            
+            // Crear conexiones con todas las pantallas conectadas
+            const connectedScreens = document.querySelectorAll('.screen-item.connected');
+            for (const screen of connectedScreens) {
+                const screenId = screen.id.replace('screen-', '');
+                await createPeerConnection(screenId);
+            }
+            
+            showToast('Transmisión iniciada en todas las pantallas', 'success');
+            updateDirectorStatus('online', 'Transmitiendo en vivo');
+        }
+
+        function stopBroadcast() {
+            state.isBroadcasting = false;
+            
+            // Cerrar todas las conexiones peer
+            state.peerConnections.forEach((pc, id) => {
+                pc.close();
+                updateScreenStatus(id, 'connected');
+            });
+            state.peerConnections.clear();
+            
+            document.getElementById('btnStartStream').disabled = false;
+            document.getElementById('btnStopStream').disabled = true;
+            
+            showToast('Transmisión detenida', 'info');
+            updateDirectorStatus('online', 'Transmisión detenida');
+        }
+
+        function toggleAudio() {
+            if (state.localStream) {
+                const audioTrack = state.localStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = !audioTrack.enabled;
+                    state.audioEnabled = audioTrack.enabled;
+                    document.getElementById('btnMute').textContent = 
+                        state.audioEnabled ? '🎤 Audio: ON' : '🔇 Audio: OFF';
+                }
+            }
+        }
+
+        async function switchCamera() {
+            state.facingMode = state.facingMode === 'user' ? 'environment' : 'user';
+            try {
+                await initCamera();
+                showToast('Cámara cambiada', 'success');
+            } catch (err) {
+                showToast('Error al cambiar cámara', 'error');
+            }
+        }
+
+        // ==================== ENVÍO DE ALERTAS ====================
+        function sendAlert(type, instructions) {
+            // Desactivar alertas anteriores
+            document.querySelectorAll('.alert-btn').forEach(btn => btn.classList.remove('active'));
+            
+            // Activar botón actual
+            document.getElementById(`btn${type.charAt(0).toUpperCase() + type.slice(1)}`).classList.add('active');
+            
+            state.currentAlert = { type, instructions };
+            
+            // Enviar a través de WebSocket
+            if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+                state.ws.send(JSON.stringify({
+                    type: 'alert',
+                    alertType: type,
+                    instructions: instructions,
+                    timestamp: Date.now()
+                }));
+            }
+            
+            // También enviar por BroadcastChannel
+            if (state.localChannel) {
+                state.localChannel.postMessage({
+                    role: 'director',
+                    type: 'alert',
+                    alertType: type,
+                    instructions: instructions
+                });
+            }
+            
+            // Si estamos transmitiendo, el audio también va por WebRTC
+            showToast(`ALERTA ${type.toUpperCase()} enviada a todas las pantallas`, 'warning');
+            
+            // Efecto visual en el panel del director
+            document.body.style.animation = 'none';
+            document.body.offsetHeight; // trigger reflow
+            document.body.style.animation = 'emergency-pulse 0.5s';
+        }
+
+        // ==================== MODO PANTALLA ====================
+        async function initScreen() {
+            document.getElementById('screen-panel').style.display = 'block';
+            
+            state.screenId = generateScreenId();
+            document.getElementById('screenIdValue').textContent = state.screenId;
+            
+            // Mostrar fallback inicialmente
+            showFallback(true, '📡', 'Conectando al sistema...', 'Esperando señal de la directora');
+            
+            // Detectar tipo de red
+            updateNetworkIndicator();
+            
+            // Conectar a señalización
+            await connectScreenSignaling();
+            
+            // Iniciar recepción WebRTC
+            setupScreenWebRTC();
+            
+            // Timeout para fallback
+            setTimeout(() => {
+                if (!state.isReceiving) {
+                    showFallback(true, '⚠️', 'Sin conexión con la directora', 
+                        'Verifique la red o espere a que inicie la transmisión');
+                }
+            }, CONFIG.FALLBACK_TIMEOUT);
+            
+            // Auto fullscreen
+            setTimeout(() => {
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                }
+            }, 1000);
+        }
+
+        async function connectScreenSignaling() {
+            try {
+                const ws = new WebSocket(state.isOnline ? CONFIG.SIGNAL_SERVER : CONFIG.LOCAL_SIGNAL_SERVER);
+                
+                ws.onopen = () => {
+                    updateScreenStatus('online', 'Conectado al sistema');
+                    ws.send(JSON.stringify({
+                        type: 'register',
+                        role: 'screen',
+                        id: state.screenId
+                    }));
+                    showFallback(false);
+                };
+                
+                ws.onmessage = async (event) => {
+                    const msg = JSON.parse(event.data);
+                    await handleScreenMessage(msg);
+                };
+                
+                ws.onclose = () => {
+                    updateScreenStatus('offline', 'Desconectado - Reintentando...');
+                    setTimeout(connectScreenSignaling, 3000);
+                };
+                
+                state.screenWs = ws;
+                
+            } catch (err) {
+                // Fallback a BroadcastChannel
+                if ('BroadcastChannel' in window) {
+                    const channel = new BroadcastChannel('alerta_escolar');
+                    channel.onmessage = async (event) => {
+                        const msg = event.data;
+                        if (msg.role === 'director') {
+                            await handleScreenMessage(msg);
+                        }
+                    };
+                    state.screenChannel = channel;
+                    updateScreenStatus('connecting', 'Modo local activo');
+                }
+            }
+        }
+
+        async function handleScreenMessage(msg) {
+            switch (msg.type) {
+                case 'alert':
+                    showEmergencyAlert(msg.alertType, msg.instructions);
+                    break;
+                    
+                case 'offer':
+                    // Oferta WebRTC del director
+                    await handleWebRTCOffer(msg);
+                    break;
+                    
+                case 'broadcast-started':
+                    showFallback(false);
+                    break;
+                    
+                case 'broadcast-stopped':
+                    showFallback(true, '📹', 'Transmisión pausada', 'Esperando que la directora reanude');
+                    break;
+            }
+        }
+
+        async function setupScreenWebRTC() {
+            const pc = new RTCPeerConnection(CONFIG.ICE_SERVERS);
+            state.screenPeerConnection = pc;
+            
+            pc.ontrack = (event) => {
+                if (event.streams && event.streams[0]) {
+                    document.getElementById('remoteVideo').srcObject = event.streams[0];
+                    state.isReceiving = true;
+                    showFallback(false);
+                    updateScreenStatus('online', 'Recibiendo transmisión en vivo');
+                }
+            };
+            
+            pc.onconnectionstatechange = () => {
+                if (pc.connectionState === 'connected') {
+                    state.isReceiving = true;
+                } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                    state.isReceiving = false;
+                    showFallback(true, '⚠️', 'Conexión perdida', 'Reconectando...');
+                }
+            };
+            
+            // Enviar ICE candidates
+            pc.onicecandidate = (event) => {
+                if (event.candidate && state.screenWs) {
+                    state.screenWs.send(JSON.stringify({
+                        type: 'ice-candidate',
+                        to: 'director',
+                        candidate: event.candidate
+                    }));
+                }
+            };
+        }
+
+        async function handleWebRTCOffer(msg) {
+            if (!state.screenPeerConnection) {
+                await setupScreenWebRTC();
+            }
+            
+            const pc = state.screenPeerConnection;
+            
+            await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
+            
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            
+            // Enviar respuesta
+            if (state.screenWs) {
+                state.screenWs.send(JSON.stringify({
+                    type: 'answer',
+                    to: msg.from || 'director',
+                    answer: answer
+                }));
+            }
+            
+            if (state.screenChannel) {
+                state.screenChannel.postMessage({
+                    role: 'screen',
+                    screenId: state.screenId,
+                    answer: answer
+                });
+            }
+        }
+
+        // ==================== VISUALIZACIÓN EN PANTALLA ====================
+        function showEmergencyAlert(type, instructions) {
+            const overlay = document.getElementById('emergencyOverlay');
+            const banner = document.getElementById('emergencyBanner');
+            const instr = document.getElementById('emergencyInstructions');
+            
+            // Configurar colores según tipo
+            const configs = {
+                roja: { class: 'emergency-roja', text: '🔴 ALERTA ROJA - AMENAZA INMEDIATA', color: '#d32f2f' },
+                naranja: { class: 'emergency-naranja', text: '🟠 ALERTA NARANJA - TERREMOTO', color: '#f57c00' },
+                amarilla: { class: 'emergency-amarilla', text: '🟡 ALERTA AMARILLA - EVACUACIÓN', color: '#f9a825' },
+                azul: { class: 'emergency-azul', text: '🔵 ALERTA AZUL - SHELTER IN PLACE', color: '#1565c0' },
+                verde: { class: 'emergency-verde', text: '🟢 TODO DESPEJADO', color: '#2e7d32' }
+            };
+            
+            const config = configs[type] || configs.azul;
+            
+            banner.className = 'emergency-banner ' + config.class;
+            banner.textContent = config.text;
+            instr.textContent = instructions;
+            instr.style.borderColor = config.color;
+            
+            overlay.classList.add('active');
+            
+            // Reproducir sonido de alerta (si hay audio)
+            playAlertSound(type);
+            
+            // Si es todo despejado, ocultar después de 10 segundos
+            if (type === 'verde') {
+                setTimeout(() => {
+                    overlay.classList.remove('active');
+                }, 10000);
+            }
+        }
+
+        function playAlertSound(type) {
+            // Crear oscilador para sonido de alerta
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                // Patrones de sonido según alerta
+                const patterns = {
+                    roja: { freq: 800, type: 'square', duration: 0.3, repeat: 5 },
+                    naranja: { freq: 600, type: 'sawtooth', duration: 0.5, repeat: 3 },
+                    amarilla: { freq: 500, type: 'sine', duration: 0.4, repeat: 4 },
+                    azul: { freq: 400, type: 'sine', duration: 0.6, repeat: 2 },
+                    verde: { freq: 523, type: 'sine', duration: 0.8, repeat: 1 }
+                };
+                
+                const pattern = patterns[type] || patterns.azul;
+                
+                let count = 0;
+                const playBeep = () => {
+                    if (count >= pattern.repeat) {
+                        oscillator.stop();
+                        return;
+                    }
+                    
+                    oscillator.frequency.setValueAtTime(pattern.freq, audioCtx.currentTime);
+                    oscillator.type = pattern.type;
+                    gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + pattern.duration);
+                    
+                    count++;
+                    setTimeout(playBeep, pattern.duration * 1000 + 200);
+                };
+                
+                oscillator.start();
+                playBeep();
+                
+            } catch (e) {
+                console.error('Error reproduciendo sonido:', e);
+            }
+        }
+
+        function showFallback(show, icon, text, subtext) {
+            const fallback = document.getElementById('fallbackMessage');
+            if (show) {
+                document.getElementById('fallbackIcon').textContent = icon;
+                document.getElementById('fallbackText').textContent = text;
+                document.getElementById('fallbackSubtext').textContent = subtext;
+                fallback.classList.add('active');
+            } else {
+                fallback.classList.remove('active');
+            }
+        }
+
+        function updateScreenStatus(status, text) {
+            const dot = document.getElementById('screenStatusDot');
+            const txt = document.getElementById('screenStatusText');
+            
+            dot.className = 'status-dot ' + status;
+            txt.textContent = text;
+        }
+
+        function updateNetworkIndicator() {
+            const icon = document.getElementById('networkIcon');
+            const text = document.getElementById('networkText');
+            
+            if (navigator.onLine) {
+                icon.textContent = '🌐';
+                text.textContent = 'Internet';
+            } else {
+                icon.textContent = '📡';
+                text.textContent = 'LAN Local';
+            }
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // ==================== MENSAJES PRE-CARGADOS (FALLBACK) ====================
+        // Estos mensajes se muestran automáticamente si no hay conexión
+        const PRELOADED_ALERTS = {
+            roja: {
+                title: '🔴 ALERTA ROJA - AMENAZA INMEDIATA',
+                instructions: 'Lockdown total. Cierren puertas, apaguen luces, silencio absoluto. No abran por ningún motivo. Alejense de puertas y ventanas.',
+                color: '#d32f2f'
+            },
+            naranja: {
+                title: '🟠 ALERTA NARANJA - TERREMOTO',
+                instructions: 'Agáchense, cúbranse bajo mesas resistentes y agárrense. Aléjense de ventanas y objetos que puedan caer. No usen elevadores.',
+                color: '#f57c00'
+            },
+            amarilla: {
+                title: '🟡 ALERTA AMARILLA - EVACUACIÓN',
+                instructions: 'Diríjanse a la salida más cercana en orden y calmados. No corran. No regresen por pertenencias. Usen las escaleras, no elevadores.',
+                color: '#f9a825'
+            },
+            azul: {
+                title: '🔵 ALERTA AZUL - SHELTER IN PLACE',
+                instructions: 'Manténganse en sus aulas. Cierren puertas y ventanas. Apaguen sistemas de ventilación. Esperen más información.',
+                color: '#1565c0'
+            },
+            verde: {
+                title: '🟢 TODO DESPEJADO',
+                instructions: 'La situación está bajo control. Reanuden actividades normales. Sigan las instrucciones de sus maestros.',
+                color: '#2e7d32'
+            }
+        };
+
+        // ==================== INICIALIZACIÓN ====================
+        window.addEventListener('load', () => {
+            // Verificar soporte de APIs
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showToast('Este navegador no soporta acceso a cámara. Use Chrome o Edge.', 'error');
+            }
+            
+            if (!window.RTCPeerConnection) {
+                showToast('WebRTC no soportado. Actualice el navegador.', 'error');
+            }
+            
+            // Guardar alertas pre-cargadas en localStorage para fallback
+            localStorage.setItem('preloadedAlerts', JSON.stringify(PRELOADED_ALERTS));
+        });
+
+        // Prevenir que la pantalla se apague
+        if ('wakeLock' in navigator) {
+            navigator.wakeLock.request('screen').catch(() => {});
+        }
+    </script>
+</body>
+</html>
